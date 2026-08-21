@@ -1,0 +1,54 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# PhishGuard Cleanups
+*.log
+*.tflite
+
+# Secrets and local configuration
+app/google-services.json
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+
+# Generated reports and test artifacts
+*.csv
+*.xml.tmp
+/screenshots/
+/test-artifacts/
+
+# Android/Gradle local artifacts
+*.apk
+*.aab
+*.apks
+/build/
+/app/build/
+/.gradle/
+google-services.json
+
+# Kunci penandatangan release — JANGAN pernah masuk repo.
+phishguard-release.jks
+*.jks
+*.keystore
+keystore.properties
+
+# Keluaran APK siap edar
+dist/

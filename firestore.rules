@@ -1,0 +1,113 @@
+rules_version = '2';
+
+// Aturan keamanan Firestore PhishGuard.
+//
+// KEADAAN SAAT INI: aplikasi menulis ke Firestore TANPA autentikasi apa pun
+// (tidak ada FirebaseAuth di kode). Konfigurasi Firebase ikut terbundel di
+// setiap APK, jadi siapa pun yang mengekstraknya bisa menulis. Aturan di
+// bawah karena itu tidak bisa menuntut login — kalau dituntut, fitur laporan
+// komunitas langsung mati. Yang bisa dilakukan sekarang: membatasi BENTUK
+// tulisan, mengunci yang tidak perlu ditulis klien, dan menutup penghapusan.
+//
+// Perbaikan sebenarnya ada di bagian PENINGKATAN di bawah berkas ini.
+//
+// Deploy:  firebase deploy --only firestore:rules
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Versi database.
+    //
+    // Klien MEMANG perlu menulis ke sini: FirebaseSyncManager.bumpServerVersion()
+    // menaikkan versi setiap kali laporan berhasil diunggah, dan itulah yang
+    // memberi tahu pengguna lain untuk menyinkron ulang. Menutupnya rapat akan
+    // mematikan propagasi komunitas tanpa gejala yang terlihat.
+    //
+    // Jadi yang dibatasi adalah BENTUKNYA: hanya dokumen "versions", hanya
+    // ketiga field itu, dan nilainya harus bertipe benar. Tidak ada dokumen
+    // metadata lain yang boleh dibuat.
+    //
+    // Sisa risikonya: penyerang masih bisa menaikkan versi berulang kali dan
+    // memaksa semua klien sinkron ulang (boros kuota, bukan perusakan data).
+    // Penutupnya App Check — lihat bagian PENINGKATAN di bawah.
+    match /metadata/versions {
+      allow read: if true;
+      allow write: if request.resource.data.keys().hasOnly(
+                        ['phishing_version', 'official_version', 'last_updated'])
+                   && (!('phishing_version' in request.resource.data)
+                        || request.resource.data.phishing_version is string)
+                   && (!('official_version' in request.resource.data)
+                        || request.resource.data.official_version is string);
+    }
+
+    match /metadata/{doc} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Daftar putih domain resmi. Ini penentu apakah bca.co.id dianggap aman,
+    // jadi klien tidak boleh menyentuhnya sama sekali.
+    match /official_urls/{doc} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Laporan phishing dari pengguna.
+    match /phishing_urls/{doc} {
+      allow read: if true;
+
+      // Buat baru: bentuknya harus benar dan ukurannya wajar.
+      allow create: if isValidReport(request.resource.data);
+
+      // Perbarui: hanya menaikkan penghitung laporan. Tanpa batasan ini,
+      // siapa pun bisa menimpa alasan/keyakinan entri yang sudah ada.
+      allow update: if isValidReport(request.resource.data)
+                    && request.resource.data.url == resource.data.url;
+
+      // Tidak ada penghapusan dari klien — itu cara termudah melumpuhkan
+      // perlindungan bagi semua pengguna.
+      allow delete: if false;
+    }
+
+    // Status tindak lanjut laporan pengguna.
+    match /reports/{doc} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasAll(['status'])
+                    && request.resource.data.size() < 20;
+      allow update, delete: if false;
+    }
+
+    function isValidReport(d) {
+      return d.keys().hasAll(['url', 'reason'])
+          && d.size() <= 10
+          && d.url is string && d.url.size() > 3 && d.url.size() < 500
+          && d.reason is string && d.reason.size() < 1000
+          && (!('confidence' in d) || (d.confidence is number
+                && d.confidence >= 0 && d.confidence <= 1));
+    }
+
+    // Apa pun di luar yang disebut di atas: tertutup.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
+// ── PENINGKATAN YANG DISARANKAN ────────────────────────────────────────────
+//
+// Aturan di atas membatasi BENTUK tulisan, bukan SIAPA yang menulis. Selama
+// belum ada identitas, penyerang tetap bisa mengirim laporan berbentuk sah
+// dalam jumlah besar. Dua langkah yang benar-benar menutupnya:
+//
+// 1. Firebase App Check (paling berdampak, tanpa mengubah alur pengguna).
+//    Memastikan tulisan datang dari APK PhishGuard asli, bukan curl.
+//    Tambahkan dependensi App Check + Play Integrity, lalu ubah tiap
+//    `allow create` menjadi:  if request.app != null && isValidReport(...)
+//
+// 2. Anonymous Auth — beri tiap pemasangan satu identitas, sehingga
+//    penyalahgunaan bisa dilacak dan dibatasi lajunya:
+//    FirebaseAuth.getInstance().signInAnonymously()
+//    lalu:  allow create: if request.auth != null && isValidReport(...)
+//
+// Terapkan perubahan kode LEBIH DULU, sebarkan versinya, baru perketat
+// aturannya — kalau dibalik, aplikasi yang sudah beredar berhenti melapor.

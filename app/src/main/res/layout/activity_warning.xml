@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Layar peringatan.
+
+    Perubahan dari versi lama: kartu merah penuh diganti permukaan netral,
+    dengan tingkat risiko dibawa oleh badge + meteran keyakinan. Alasannya
+    semua peringatan dulu terlihat sama gawatnya, jadi pengguna berhenti
+    membacanya. Sekarang "risiko tinggi" dan "perlu diperiksa" bisa dibedakan
+    sekilas, dan alasan deteksi ditulis dengan bahasa manusia.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/scrim">
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_margin="20dp"
+        android:fillViewport="false">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_warning_card"
+            android:orientation="vertical"
+            android:padding="24dp">
+
+            <!-- Ikon risiko -->
+            <FrameLayout
+                android:id="@+id/iconRiskContainer"
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:layout_gravity="center_horizontal"
+                android:background="@drawable/bg_icon_circle_risk">
+
+                <ImageView
+                    android:id="@+id/ivRiskIcon"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:layout_gravity="center"
+                    android:contentDescription="@string/warning_title"
+                    android:src="@android:drawable/ic_dialog_alert"
+                    app:tint="@color/error" />
+            </FrameLayout>
+
+            <!-- Badge tingkat risiko -->
+            <TextView
+                android:id="@+id/tvRiskBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/bg_risk_badge"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.06"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="6dp"
+                android:text="@string/risk_high"
+                android:textColor="@color/error_dark"
+                android:textSize="11sp" />
+
+            <!-- Judul -->
+            <TextView
+                android:id="@+id/tvWarningTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:fontFamily="sans-serif-black"
+                android:gravity="center"
+                android:text="@string/warning_title"
+                android:textColor="@color/text_primary"
+                android:textSize="21sp" />
+
+            <!-- Nama situs, bagian terpenting untuk dibaca pengguna -->
+            <TextView
+                android:id="@+id/tvWarningHost"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:ellipsize="middle"
+                android:fontFamily="monospace"
+                android:gravity="center"
+                android:singleLine="true"
+                android:textColor="@color/error_dark"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                tools:text="klikbca-verifikasi.tk" />
+
+            <!-- Alasan deteksi -->
+            <TextView
+                android:id="@+id/tvWarningReason"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:gravity="center"
+                android:lineSpacingExtra="3dp"
+                android:text="@string/warning_subtitle"
+                android:textColor="@color/text_secondary"
+                android:textSize="14sp" />
+
+            <!-- Meteran keyakinan: seberapa yakin sistem, bukan vonis mutlak -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="10dp"
+                    android:text="@string/risk_meter_label"
+                    android:textColor="@color/text_hint"
+                    android:textSize="11sp" />
+
+                <ProgressBar
+                    android:id="@+id/pbConfidence"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="0dp"
+                    android:layout_height="6dp"
+                    android:layout_weight="1"
+                    android:max="100"
+                    android:progress="90"
+                    android:progressTint="@color/error"
+                    android:progressBackgroundTint="@color/divider" />
+
+                <TextView
+                    android:id="@+id/tvConfidence"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:fontFamily="sans-serif-medium"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp"
+                    tools:text="90%" />
+            </LinearLayout>
+
+            <!-- Alamat lengkap / isi pesan -->
+            <TextView
+                android:id="@+id/tvWarningUrl"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/bg_url_box"
+                android:ellipsize="middle"
+                android:fontFamily="monospace"
+                android:maxLines="4"
+                android:padding="12dp"
+                android:textColor="@color/text_secondary"
+                android:textIsSelectable="true"
+                android:textSize="12sp"
+                tools:text="https://klikbca-verifikasi.tk/login" />
+
+            <!-- Sumber deteksi -->
+            <TextView
+                android:id="@+id/tvSource"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center"
+                android:textColor="@color/text_hint"
+                android:textSize="11sp"
+                tools:text="Terdeteksi di Chrome" />
+
+            <!-- Pertanyaan HITL -->
+            <TextView
+                android:id="@+id/tvQuestion"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:text="@string/warning_question"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp" />
+
+            <!-- Aksi utama: menjauh dari situs -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnCloseWarning"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="52dp"
+                android:paddingVertical="10dp"
+                android:layout_marginTop="14dp"
+                android:text="@string/warning_btn_block"
+                android:textAllCaps="false"
+                android:textColor="@color/white"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                app:backgroundTint="@color/error"
+                app:cornerRadius="16dp" />
+
+            <!-- Aksi sekunder: sengaja tidak menonjol, tapi tetap mudah dicapai -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnMarkSafe"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="46dp"
+                android:layout_marginTop="4dp"
+                android:text="@string/warning_btn_safe"
+                android:textAllCaps="false"
+                android:textColor="@color/text_secondary"
+                android:textSize="14sp" />
+        </LinearLayout>
+    </ScrollView>
+</FrameLayout>

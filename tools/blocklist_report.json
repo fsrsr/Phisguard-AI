@@ -1,0 +1,12 @@
+{
+  "domains": 4108088,
+  "bits": 78752528,
+  "hashes": 13,
+  "size_bytes": 9844090,
+  "categories": {
+    "suspicious": 333300,
+    "malicious": 2120336,
+    "gambling": 1828090
+  },
+  "target_fpr": 0.0001
+}

@@ -1,0 +1,30 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Outer rounded rectangle -->
+    <path
+        android:fillColor="#E4405F"
+        android:pathData="M7.5,2L16.5,2C19.5,2 22,4.5 22,7.5L22,16.5C22,19.5 19.5,22 16.5,22L7.5,22C4.5,22 2,19.5 2,16.5L2,7.5C2,4.5 4.5,2 7.5,2Z"/>
+    <!-- Inner rounded rectangle (cutout effect) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:strokeWidth="1.5"
+        android:strokeColor="#FFFFFF"
+        android:pathData="M16.0,3.8L8.0,3.8C5.7,3.8 3.8,5.7 3.8,8.0L3.8,16.0C3.8,18.3 5.7,20.2 8.0,20.2L16.0,20.2C18.3,20.2 20.2,18.3 20.2,16.0L20.2,8.0C20.2,5.7 18.3,3.8 16.0,3.8Z"/>
+    <!-- Fill back the inside -->
+    <path
+        android:fillColor="#E4405F"
+        android:pathData="M16.0,4.5L8.0,4.5C6.1,4.5 4.5,6.1 4.5,8.0L4.5,16.0C4.5,17.9 6.1,19.5 8.0,19.5L16.0,19.5C17.9,19.5 19.5,17.9 19.5,16.0L19.5,8.0C19.5,6.1 17.9,4.5 16.0,4.5Z"/>
+    <!-- Center circle (lens) -->
+    <path
+        android:fillColor="#E4405F"
+        android:strokeWidth="1.5"
+        android:strokeColor="#FFFFFF"
+        android:pathData="M12,8.5C13.933,8.5 15.5,10.067 15.5,12C15.5,13.933 13.933,15.5 12,15.5C10.067,15.5 8.5,13.933 8.5,12C8.5,10.067 10.067,8.5 12,8.5Z"/>
+    <!-- Flash dot (top right) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M17.0,6.0C17.55,6.0 18.0,6.45 18.0,7.0C18.0,7.55 17.55,8.0 17.0,8.0C16.45,8.0 16.0,7.55 16.0,7.0C16.0,6.45 16.45,6.0 17.0,6.0Z"/>
+</vector>

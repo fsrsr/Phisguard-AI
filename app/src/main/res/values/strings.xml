@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PhishGuard AI</string>
+    <string name="app_subtitle">AI-Powered Anti-Fraud Protection</string>
+
+    <!-- Bottom Nav -->
+    <string name="nav_dashboard">Dashboard</string>
+    <string name="nav_protection">Protection</string>
+    <string name="nav_activity">Activity</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Dashboard -->
+    <string name="status_active">System Protected</string>
+    <string name="status_inactive">Protection Inactive</string>
+    <string name="status_desc_active">All monitoring systems are running</string>
+    <string name="status_desc_inactive">Enable accessibility service to start</string>
+    <string name="stat_scanned">URLs Scanned</string>
+    <string name="stat_blocked">Threats Blocked</string>
+    <string name="stat_calls">Calls Monitored</string>
+    <string name="recent_threats">Recent Threats</string>
+    <string name="no_threats">No threats detected yet</string>
+    <string name="my_reports">Laporan Saya</string>
+    <string name="no_reports">Belum ada laporan.</string>
+    <string name="reports_summary">%1$d laporan • Terakhir: %2$s • Status: %3$s%4$s</string>
+
+    <!-- Protection -->
+    <string name="protection_title">App Monitoring</string>
+    <string name="protection_desc">Select which apps to monitor for suspicious links and messages</string>
+    <string name="app_sms">Messages (SMS)</string>
+    <string name="app_sms_desc">Monitor incoming SMS for phishing links</string>
+    <string name="app_whatsapp">WhatsApp</string>
+    <string name="app_whatsapp_desc">Scan links shared in WhatsApp chats</string>
+    <string name="app_telegram">Telegram</string>
+    <string name="app_telegram_desc">Scan links shared in Telegram chats</string>
+    <string name="app_facebook">Facebook Messenger</string>
+    <string name="app_facebook_desc">Scan links in Facebook messages</string>
+    <string name="app_instagram">Instagram</string>
+    <string name="app_instagram_desc">Scan links in Instagram DMs</string>
+    <string name="app_chrome">Chrome Browser</string>
+    <string name="app_chrome_desc">Monitor URLs visited in Chrome</string>
+    <string name="call_protection">Call Protection</string>
+    <string name="call_protection_desc">AI-powered detection of fraudulent phone calls</string>
+
+    <!-- Activity -->
+    <string name="activity_title">Activity Log</string>
+    <string name="filter_all">All</string>
+    <string name="filter_phishing">Phishing</string>
+    <string name="filter_calls">Calls</string>
+    <string name="filter_safe">Safe</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="setting_accessibility">Accessibility Service</string>
+    <string name="setting_accessibility_desc">Required for monitoring apps</string>
+    <string name="setting_notifications">Notifications</string>
+    <string name="setting_notifications_desc">Alert when threats are detected</string>
+    <string name="setting_tts">Voice Alerts</string>
+    <string name="setting_tts_desc">Speak warnings aloud when threats found</string>
+    <string name="setting_about">About</string>
+    <string name="setting_version">Version 1.0</string>
+    <string name="setting_export">Export Laporan Aktivitas</string>
+    <string name="setting_export_desc">Simpan log deteksi ke CSV di folder Download</string>
+    <string name="setting_notif_access">Notifikasi Access (SMS/chat)</string>
+    <string name="setting_notif_access_desc">Izinkan akses untuk menyembunyikan notifikasi penipuan dari WhatsApp/Telegram/SMS</string>
+    <string name="export_empty">Belum ada log aktivitas untuk diekspor.</string>
+    <string name="export_success">Laporan tersimpan: %1$s</string>
+    <string name="btn_enable">Enable Protection</string>
+    <string name="btn_manage">Manage Permissions</string>
+
+    <!-- Warning Screen -->
+    <string name="warning_title">Situs ini berbahaya</string>
+    <string name="warning_title_medium">Situs ini perlu diperiksa</string>
+    <string name="warning_title_sms">Pesan ini terindikasi penipuan</string>
+    <string name="warning_subtitle">Terindikasi berusaha mencuri data Anda.</string>
+    <string name="warning_question">Apakah menurut Anda ini memang penipuan?</string>
+    <string name="warning_btn_block">Laporkan dan keluar dari situs ini</string>
+    <!-- Harus muat satu baris di tombol; label panjang terpotong di layar sempit. -->
+    <string name="warning_btn_safe">Situs ini aman</string>
+    <!-- Label fitur pelaporan pesan (dipertahankan dari perubahan tim). -->
+    <string name="warning_btn_close">Laporkan pesan ini</string>
+    <string name="warning_btn_ignore">Abaikan pesan ini</string>
+    <string name="risk_message_reported">Laporan tersimpan. PhishGuard tetap aktif.</string>
+    <string name="warning_btn_block_number">Blokir nomor ini</string>
+    <string name="warning_blocked_permanent">Situs ini sudah Anda blokir sebelumnya.</string>
+    <string name="warning_sms_advice">Jangan balas dan jangan klik tautan apa pun di dalamnya.</string>
+    <string name="warning_blocking">Memblokir…</string>
+    <string name="warning_source">Terdeteksi di %1$s</string>
+    <string name="warning_url_label">URL yang diblokir:</string>
+
+    <!-- Tingkat risiko -->
+    <string name="risk_high">RISIKO TINGGI</string>
+    <string name="risk_medium">PERLU DIPERIKSA</string>
+    <string name="risk_meter_label">Keyakinan</string>
+    <string name="risk_reported">Dilaporkan ke komunitas PhishGuard</string>
+    <string name="risk_number_blocked">Nomor %1$s diblokir</string>
+
+    <!-- Detected Apps -->
+    <string name="detected_apps_header">Ditemukan di HP Anda</string>
+    <string name="detected_apps_desc">Aplikasi tambahan yang bisa dimonitor</string>
+
+    <!-- Integrity -->
+    <string name="integrity_failed_title">Keamanan Terancam</string>
+    <string name="integrity_failed_message">Aplikasi telah dimodifikasi dan tidak aman untuk digunakan. Silakan install ulang dari sumber resmi.</string>
+</resources>
