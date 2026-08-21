@@ -28,7 +28,7 @@ class WebsiteReconAgent {
 
     // Cloud AI endpoint — set null to use local-only analysis.
     // Configure with: WebsiteReconAgent.AI_ENDPOINT = "https://your-api.com/recon"
-    var aiEndpoint: String? = "https://jeffrey-contacting-saw-outdoor.trycloudflare.com/v1/chat/completions"
+    var aiEndpoint: String? = "https://attempts-sas-display-buffer.trycloudflare.com/v1/chat/completions"
     var aiApiKey: String? = "sk-phishguard-vps-key-2024"
 
     data class ReconResult(
@@ -359,105 +359,143 @@ class WebsiteReconAgent {
     }
 
     // ── Cloud AI Recon ────────────────────────────────────────────────
+        // Calls the VPS recon server: POST /v1/recon with {"url": "..."}
+        // Returns comprehensive analysis including website fetch, DNS, SSL, AI
 
-    private fun callAiRecon(url: String, domain: String): List<Finding> {
-        val findings = mutableListOf<Finding>()
-        try {
-            val prompt = buildString {
-                append("Analyze this URL for phishing and social engineering threats:\n")
-                append("URL: $url\n")
-                append("Domain: $domain\n\n")
-                append("Check for:\n")
-                append("1. Domain reputation and age\n")
-                append("2. Typosquatting of known brands\n")
-                append("3. Social engineering patterns (business opportunity, reseller, investment scam)\n")
-                append("4. URL structure anomalies\n")
-                append("5. Known phishing infrastructure indicators\n\n")
-                append("Return JSON: {\"risk\": \"LOW|MEDIUM|HIGH|CRITICAL\", \"score\": 0-100, \"reasons\": [...], \"se_patterns\": [...]}")
-            }
+        private fun callAiRecon(url: String, domain: String): List<Finding> {
+            val findings = mutableListOf<Finding>()
+            try {
+                val body = gson.toJson(mapOf("url" to url))
 
-            val body = gson.toJson(mapOf(
-                "model" to "free-model",
-                "messages" to listOf(
-                    mapOf("role" to "system", "content" to "You are a cybersecurity expert analyzing URLs for phishing and social engineering threats. Reply in Indonesian."),
-                    mapOf("role" to "user", "content" to prompt)
-                ),
-                "max_tokens" to 1024,
-                "temperature" to 0.3
-            ))
-
-            val conn = java.net.URL(aiEndpoint).openConnection() as java.net.HttpURLConnection
-            conn.apply {
-                requestMethod = "POST"
-                setRequestProperty("Content-Type", "application/json")
-                if (!aiApiKey.isNullOrBlank()) {
-                    setRequestProperty("Authorization", "Bearer $aiApiKey")
-                }
-                connectTimeout = 15000
-                readTimeout = 30000
-                doOutput = true
-            }
-            conn.outputStream.use { it.write(body.toByteArray()) }
-
-            val responseCode = conn.responseCode
-            val responseBody = if (responseCode in 200..299) {
-                conn.inputStream.bufferedReader().readText()
-            } else {
-                conn.errorStream?.bufferedReader()?.readText() ?: ""
-            }
-            conn.disconnect()
-
-            Log.d(TAG, "AI API response (code=$responseCode): ${responseBody.take(500)}")
-
-            // Strip SSE streaming suffix if present
-            val cleanResponse = responseBody.replace(Regex("\\ndata: \\[DONE\\]$"), "").trim()
-
-            if (responseCode in 200..299 && cleanResponse.isNotBlank()) {
-                val reader = JsonReader(java.io.StringReader(cleanResponse))
-                reader.isLenient = true
-                val json = JsonParser.parseReader(reader).asJsonObject
-                val choice = json.getAsJsonArray("choices")
-                    ?.get(0)?.asJsonObject
-                    ?.getAsJsonObject("message")
-                    ?.let { msg ->
-                        msg.get("content")?.asString
-                            ?: msg.get("reasoning")?.asString
-                    } ?: return findings
-
-                // Try parse as JSON first, fallback to plain text
-                val aiJson = try {
-                    val reader = JsonReader(java.io.StringReader(choice))
-                    reader.isLenient = true
-                    JsonParser.parseReader(reader).asJsonObject
-                } catch (e: Exception) {
-                    // Non-JSON response (reasoning model) — use as-is
-                    findings.add(Finding("AI Analisis", choice.take(500), RiskLevel.MEDIUM))
-                    return findings
+                val reconEndpoint = aiEndpoint!!.replace("/v1/chat/completions", "/v1/recon")
+                val conn = java.net.URL(reconEndpoint).openConnection() as java.net.HttpURLConnection
+                conn.apply {
+                    requestMethod = "POST"
+                    setRequestProperty("Content-Type", "application/json")
+                    if (!aiApiKey.isNullOrBlank()) {
+                        setRequestProperty("Authorization", "Bearer $aiApiKey")
+                    }
+                    connectTimeout = 60000
+                    readTimeout = 60000
+                    doOutput = true
                 }
 
-                val risk = aiJson.get("risk")?.asString ?: "MEDIUM"
-                val reasons = aiJson.getAsJsonArray("reasons")
-                    ?.map { it.asString } ?: emptyList()
+                conn.outputStream.use { it.write(body.toByteArray()) }
+                val responseCode = conn.responseCode
 
-                val riskLevel = when (risk) {
-                    "CRITICAL" -> RiskLevel.CRITICAL
-                    "HIGH" -> RiskLevel.HIGH
-                    "MEDIUM" -> RiskLevel.MEDIUM
-                    "LOW" -> RiskLevel.LOW
-                    else -> RiskLevel.SAFE
+                val responseBody = if (responseCode in 200..299) {
+                    conn.inputStream.bufferedReader().readText()
+                } else {
+                    conn.errorStream?.bufferedReader()?.readText() ?: ""
+                }
+                conn.disconnect()
+
+                Log.d(TAG, "Recon API response (code=$responseCode): ${responseBody.take(500)}")
+
+                if (responseCode in 200..299 && responseBody.isNotBlank()) {
+                    val json = JsonParser.parseString(responseBody).asJsonObject
+
+                    // Extract overall risk from recon server
+                    val risk = json.get("overall_risk")?.asString ?: "UNKNOWN"
+                    val score = json.get("overall_score")?.asInt ?: 0
+                    val reasons = json.get("reasons")?.asJsonArray?.map { it.asString }?.toList() ?: emptyList()
+
+                    val aiRisk = json.get("ai")?.asJsonObject?.get("ai_risk")?.asString ?: risk
+                    val aiScore = json.get("ai")?.asJsonObject?.get("ai_score")?.asInt ?: score
+                    val aiReasons = json.get("ai")?.asJsonObject?.get("ai_reasons")?.asJsonArray?.map { it.asString }?.toList() ?: reasons
+                    val aiSummary = json.get("ai")?.asJsonObject?.get("ai_summary")?.asString ?: ""
+                    val aiBrand = json.get("ai")?.asJsonObject?.get("ai_brand_impersonation")?.asString
+                    val aiForms = json.get("ai")?.asJsonObject?.get("ai_suspicious_forms")?.asJsonArray?.map { it.asString }?.toList() ?: emptyList()
+                    val aiPatterns = json.get("ai")?.asJsonObject?.get("ai_se_patterns")?.asJsonArray?.map { it.asString }?.toList() ?: emptyList()
+
+                    // Website data
+                    val website = json.get("website")?.asJsonObject
+                    val statusCode = website?.get("status_code")?.asInt
+                    val title = website?.get("title")?.asString ?: ""
+                    val fetchError = website?.get("fetch_error")?.asString
+
+                    // SSL data
+                    val ssl = json.get("ssl")?.asJsonObject
+                    val sslValid = ssl?.get("valid")?.asBoolean ?: false
+                    val sslIssuer = ssl?.get("issuer")?.asString ?: ""
+                    val sslError = ssl?.get("error")?.asString
+
+                    // DNS data
+                    val dns = json.get("dns")?.asJsonObject
+                    val aRecords = dns?.get("a_records")?.asJsonArray?.map { it.asString }?.toList() ?: emptyList()
+                    val dnsError = dns?.get("error")?.asString
+
+                    // Content data
+                    val content = json.get("content")?.asJsonObject
+                    val formCount = content?.get("form_count")?.asInt ?: 0
+                    val passwordForms = content?.get("password_forms")?.asInt ?: 0
+                    val iframeCount = content?.get("iframe_count")?.asInt ?: 0
+
+                    // Determine risk level
+                    val riskLevel = when (aiRisk.uppercase()) {
+                        "CRITICAL" -> RiskLevel.CRITICAL
+                        "HIGH" -> RiskLevel.HIGH
+                        "MEDIUM" -> RiskLevel.MEDIUM
+                        else -> RiskLevel.LOW
+                    }
+
+                    // Main AI analysis finding
+                    val summary = buildString {
+                        append("🤖 AI Analisis (Full Website Recon)\n")
+                        append("Risk: $aiRisk | Score: $aiScore/100\n")
+                        if (aiBrand != null) append("Brand tiruan: $aiBrand\n")
+                        if (statusCode != null) append("HTTP: $statusCode\n")
+                        if (title.isNotBlank()) append("Title: $title\n")
+                        append("SSL: ${if (sslValid) "Valid ($sslIssuer)" else "Invalid/Tidak ada"} \n")
+                        if (aRecords.isNotEmpty()) append("IP: ${aRecords.joinToString(", ")} \n")
+                        append("Forms: $formCount (password: $passwordForms) | Iframes: $iframeCount\n")
+                        if (fetchError != null) append("Fetch error: $fetchError\n")
+                        if (sslError != null) append("SSL error: $sslError\n")
+                        if (dnsError != null) append("DNS error: $dnsError\n")
+                        if (aiSummary.isNotBlank()) {
+                            append("\nDetail: ${aiSummary.take(1000)}\n")
+                        }
+                    }
+
+                    findings.add(Finding("AI Full Recon", summary, riskLevel))
+
+                    // Add reasons
+                    for (reason in aiReasons) {
+                        findings.add(Finding("AI Reason", reason, riskLevel))
+                    }
+
+                    // Brand impersonation
+                    if (aiBrand != null && aiBrand.isNotBlank()) {
+                        findings.add(Finding("Brand Tiruan", "Diduga menirukan: $aiBrand", RiskLevel.HIGH))
+                    }
+
+                    // Suspicious forms
+                    for (form in aiForms) {
+                        findings.add(Finding("Form Mencurigakan", form, RiskLevel.HIGH))
+                    }
+
+                    // SE patterns
+                    for (pattern in aiPatterns) {
+                        findings.add(Finding("Social Engineering", pattern, RiskLevel.MEDIUM))
+                    }
+
+                    // SSL info
+                    if (!sslValid) {
+                        findings.add(Finding("SSL Invalid", "Sertifikat SSL tidak valid: ${sslError ?: "unknown"}", RiskLevel.HIGH))
+                    } else if (sslIssuer.isNotBlank()) {
+                        findings.add(Finding("SSL Info", "Issuer: $sslIssuer", RiskLevel.LOW))
+                    }
+
+                } else {
+                    findings.add(Finding("Recon Error", "Server recon gagal: HTTP $responseCode - $responseBody", RiskLevel.MEDIUM))
                 }
 
-                findings.add(Finding(
-                    "AI Analisis",
-                    reasons.joinToString("\n• ", prefix = "• "),
-                    riskLevel
-                ))
+            } catch (e: Exception) {
+                Log.e(TAG, "Recon error", e)
+                findings.add(Finding("Error", "Recon exception: ${e.message ?: "unknown"}", RiskLevel.MEDIUM))
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Cloud AI recon error", e)
+            return findings
         }
-        return findings
-    }
 
     // ── Helpers ───────────────────────────────────────────────────────
 
