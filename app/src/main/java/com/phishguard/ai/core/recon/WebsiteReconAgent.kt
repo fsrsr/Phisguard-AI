@@ -28,8 +28,8 @@ class WebsiteReconAgent {
 
     // Cloud AI endpoint — set null to use local-only analysis.
     // Configure with: WebsiteReconAgent.AI_ENDPOINT = "https://your-api.com/recon"
-    var aiEndpoint: String? = "http://localhost:20128/v1/chat/completions"
-    var aiApiKey: String? = "sk-wWAOBhwuk5eeHlykFNNAtYWpurJvqW1vuFzW7HShZnoJVjdb6gXof0JSo9qJjdWY"
+    var aiEndpoint: String? = "https://jeffrey-contacting-saw-outdoor.trycloudflare.com/v1/chat/completions"
+    var aiApiKey: String? = "sk-phishguard-vps-key-2024"
 
     data class ReconResult(
         val url: String,
