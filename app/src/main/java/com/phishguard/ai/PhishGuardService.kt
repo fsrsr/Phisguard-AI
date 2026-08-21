@@ -19,6 +19,7 @@ import com.phishguard.ai.core.ai.AnalysisResult
 import com.phishguard.ai.core.ai.LayeredResult
 import com.phishguard.ai.core.ai.ThreatLayer
 import com.phishguard.ai.core.ai.UrlRiskScorer
+import com.phishguard.ai.core.ui.FloatingCheckManager
 import com.phishguard.ai.data.db.PhishingNumber
 import com.phishguard.ai.core.network.FirebaseSyncManager
 import com.phishguard.ai.core.network.ServerSyncManager
@@ -34,6 +35,7 @@ class PhishGuardService : AccessibilityService() {
     private var pipeline: AnalysisPipeline? = null
     private var prefs: AppPreferences? = null
     private var isReady = false
+    private var floatingCheck: FloatingCheckManager? = null
 
     // Track last URL to avoid duplicate scans
     private var lastDetectedUrl: String = ""
@@ -155,6 +157,7 @@ class PhishGuardService : AccessibilityService() {
             pipeline = AnalysisPipeline(this)
             prefs = AppPreferences(this)
             isReady = true
+            floatingCheck = FloatingCheckManager(this)
 
             // Muat keputusan HITL pengguna dari sesi sebelumnya
             hitlBlacklistUrls.addAll(loadUrlSet(PREF_BLACKLIST))
@@ -342,6 +345,9 @@ class PhishGuardService : AccessibilityService() {
 
                 val normalizedUrl = normalizeUrl(analyzedUrl)
                 Log.d(TAG, "URL final: $normalizedUrl")
+
+                // Tampilkan floating "Check" button saat browsing
+                floatingCheck?.show(analyzedUrl)
 
                 // Hindari memproses URL yang sama berulang
                 if (normalizedUrl == normalizeUrl(lastDetectedUrl)) return
@@ -896,6 +902,7 @@ class PhishGuardService : AccessibilityService() {
     ) {
         try {
             warningShownForUrl = url
+            floatingCheck?.hide() // Sembunyikan saat warning muncul
             val intent = Intent(this, WarningActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 putExtra(WarningActivity.EXTRA_PHISHING_URL, url)
@@ -1020,6 +1027,7 @@ class PhishGuardService : AccessibilityService() {
         prefs?.unregisterListener(prefListener)
         try { unregisterReceiver(hitlReceiver) } catch (e: Exception) {}
         pipeline?.release()
+        floatingCheck?.destroy()
         isReady = false
     }
 

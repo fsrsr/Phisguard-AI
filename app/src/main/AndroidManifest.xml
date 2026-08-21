@@ -22,6 +22,9 @@
     <!-- Network -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Overlay (floating Check this website button) -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
     <!-- Foreground Service -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <!--
@@ -41,7 +44,8 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Ai_project_singapore">
+        android:theme="@style/Theme.Ai_project_singapore"
+        android:usesCleartextTraffic="true">
 
         <activity
             android:name=".MainActivity"
@@ -84,6 +88,30 @@
         <!-- Warning Overlay Activity -->
         <activity
             android:name=".ui.WarningActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Warning"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:launchMode="singleInstance" />
+
+        <!-- Check Website (AI Recon) — accessible from Android Share Sheet -->
+        <activity
+            android:name=".ui.CheckWebsiteActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Warning"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:launchMode="singleInstance">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
+        <!-- Recon Result popup -->
+        <activity
+            android:name=".ui.ReconResultActivity"
             android:exported="false"
             android:theme="@style/Theme.Warning"
             android:excludeFromRecents="true"

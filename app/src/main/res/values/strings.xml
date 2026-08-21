@@ -101,4 +101,20 @@
     <!-- Integrity -->
     <string name="integrity_failed_title">Keamanan Terancam</string>
     <string name="integrity_failed_message">Aplikasi telah dimodifikasi dan tidak aman untuk digunakan. Silakan install ulang dari sumber resmi.</string>
+
+    <!-- Check Website / AI Recon -->
+    <string name="recon_loading">Menganalisis situs…</string>
+    <string name="recon_analyzing">AI sedang melakukan reconnaissance</string>
+    <string name="recon_title">Hasil Recon</string>
+    <string name="recon_title_dangerous">Situs ini berbahaya</string>
+    <string name="recon_title_suspicious">Situs ini perlu diperiksa</string>
+    <string name="recon_title_low_risk">Rendah risiko</string>
+    <string name="recon_title_safe">Situs ini aman</string>
+    <string name="recon_findings_title">Temuan Analisis</string>
+    <string name="recon_se_title">⚠ Indikator Social Engineering</string>
+    <string name="recon_btn_close">Tutup</string>
+    <string name="recon_share_label">Check this website (PhishGuard AI)</string>
+    <string name="floating_btn_check">Check</string>
+    <string name="setting_floating_check">Floating Check Button</string>
+    <string name="setting_floating_check_desc">Tampilkan tombol \"Check\" saat browsing untuk analisis AI recon</string>
 </resources>

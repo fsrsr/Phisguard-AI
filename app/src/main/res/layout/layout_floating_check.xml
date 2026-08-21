@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Floating "Check this website" button — muncul di overlay saat browsing -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="@drawable/bg_floating_check"
+    android:paddingHorizontal="14dp"
+    android:paddingVertical="10dp"
+    android:elevation="8dp"
+    android:alpha="0.92">
+
+    <ImageView
+        android:id="@+id/ivFloatingIcon"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:contentDescription="@string/recon_share_label"
+        android:src="@android:drawable/ic_menu_search"
+        android:tint="@color/white" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="6dp"
+        android:text="@string/floating_btn_check"
+        android:textColor="@color/white"
+        android:textSize="12sp"
+        android:fontFamily="sans-serif-medium" />
+</LinearLayout>

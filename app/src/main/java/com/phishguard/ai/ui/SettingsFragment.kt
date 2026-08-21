@@ -14,6 +14,7 @@ import android.widget.Toast
 import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
 import com.phishguard.ai.R
+import com.phishguard.ai.core.ui.FloatingCheckManager
 import com.phishguard.ai.data.AppPreferences
 import com.google.android.material.switchmaterial.SwitchMaterial
 import java.io.File
@@ -80,6 +81,23 @@ class SettingsFragment : Fragment() {
         val btnNotifAccess = view.findViewById<LinearLayout>(R.id.btnNotifAccess)
         btnNotifAccess.setOnClickListener {
             startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        }
+
+        // Floating Check Button toggle
+        val switchFloatingCheck = view.findViewById<SwitchMaterial>(R.id.switchFloatingCheck)
+        val floatingPrefs = requireContext().getSharedPreferences("floating_check", Context.MODE_PRIVATE)
+        switchFloatingCheck.isChecked = floatingPrefs.getBoolean("enabled", true)
+        switchFloatingCheck.setOnCheckedChangeListener { _, checked ->
+            floatingPrefs.edit().putBoolean("enabled", checked).apply()
+            if (checked && !android.provider.Settings.canDrawOverlays(requireContext())) {
+                // Minta izin overlay
+                val intent = Intent(
+                    android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    android.net.Uri.parse("package:${requireContext().packageName}")
+                )
+                startActivity(intent)
+                Toast.makeText(requireContext(), "Izinkan overlay untuk tombol Check", Toast.LENGTH_LONG).show()
+            }
         }
 
         // Export Activity Log ke CSV (bukti laporan, mis. untuk kepolisian)
