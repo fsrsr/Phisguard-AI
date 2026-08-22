@@ -364,6 +364,156 @@ def analyze_ssl(domain: str) -> dict:
     return result
 
 
+# ─── Local heuristic pattern detection ───────────────────────────────────
+
+def detect_scam_patterns(url: str, domain: str, website_data: dict,
+                         content_data: dict, dns_data: dict, ssl_data: dict) -> dict:
+    """Local heuristic detection for known scam patterns. Returns patterns, risk, conclusion."""
+    patterns = []
+    risk_boost = 0
+    risk = "MEDIUM"
+    conclusion = ""
+
+    # 1. IP Tracker / Grabify-like detection
+    SHORT_URL_DOMAINS = [
+        "urlto.me", "bit.ly", "tinyurl.com", "t.co", "ow.ly", "is.gd",
+        "buff.ly", "adf.ly", "tiny.cc", "rb.gy", "cutt.ly", "shorturl.at",
+    ]
+    parsed_url = urlparse(url if url.startswith("http") else "https://" + url)
+    if any(d in parsed_url.hostname for d in SHORT_URL_DOMAINS if parsed_url.hostname):
+        patterns.append("IP_TRACKER: URL pendek digunakan → bisa jadi pelacak IP (Grabify-like)")
+        risk_boost += 25
+
+    # Check if final URL differs significantly from original
+    final_url = website_data.get("final_url", "")
+    if final_url:
+        final_domain = urlparse(final_url).hostname or ""
+        if domain != final_domain:
+            patterns.append(f"REDIRECT: Domain berubah dari {domain} ke {final_domain}")
+            risk_boost += 10
+            # Check if destination has minimal content (IP tracker pattern)
+            if content_data.get("form_count", 0) == 0 and content_data.get("link_count", 0) < 3:
+                patterns.append("MINIMAL_CONTENT: Halaman kosong/tanpa konten nyata → indikasi IP tracker")
+                risk_boost += 25
+
+    # 2. Payment scam detection (Indonesian payment methods on suspicious domain)
+    PAYMENT_KEYWORDS = ["qris", "dana", "ovo", "gopay", "shopeepay", "linkaja",
+                        "transfer bank", "bca", "bri", "mandiri", "bni", "bank bri",
+                        "virtual account", "ewallet", "e-wallet"]
+    visible_text = content_data.get("visible_text_preview", "").lower()
+    forms = content_data.get("forms", [])
+
+    has_payment_kw = any(kw in visible_text for kw in PAYMENT_KEYWORDS)
+    has_login_form = any(f.get("has_password") for f in forms)
+    has_payment_form = any("pay" in str(f.get("action", "")).lower() for f in forms)
+
+    if has_payment_kw and (has_login_form or has_payment_form):
+        # Check if this is NOT a legitimate Indonesian payment site
+        LEGIT_DOMAINS = ["bca.co.id", "bri.co.id", "mandiri.co.id", "bni.co.id",
+                         "dana.id", "ovo.id", "gopay.id", "shopee.co.id", "tokopedia.com",
+                         "bukalapak.com", "blibli.com", "traveloka.com", "grab.com"]
+        if not any(d in domain for d in LEGIT_DOMAINS):
+            patterns.append("PAYMENT_SCAM: Form pembayaran/transfer di domain tidak resmi")
+            risk_boost += 35
+            risk = "HIGH"
+
+    # 3. Gambling/Judol detection
+    JUDOL_KEYWORDS = ["slot", "casino", "betting", "togel", "poker", "jackpot",
+                      "pragmatic", "habanero", "pgsoft", "scatter", "gacor",
+                      "maxwin", "rtp live", "deposit pulsa", "bet"]
+    judol_count = sum(1 for kw in JUDOL_KEYWORDS if kw in visible_text)
+    if judol_count >= 2:
+        patterns.append(f"JUDOL: {judol_count} kata kunci judi ditemukan ({', '.join([k for k in JUDOL_KEYWORDS if k in visible_text][:5])})")
+        risk_boost += 40
+        risk = "HIGH"
+        conclusion = f"Ini website judi online (JUDOL). Ditemukan {judol_count} indikator perjudian. JANGAN bermain atau deposit uang."
+
+    # 4. Brand impersonation detection
+    BRAND_PATTERNS = {
+        "bca": ["bca", "bank central asia"],
+        "bri": ["bri", "bank rakyat indonesia"],
+        "mandiri": ["mandiri", "bank mandiri"],
+        "bni": ["bni", "bank negara indonesia"],
+        "shopee": ["shopee"],
+        "tokopedia": ["tokopedia"],
+        "dana": ["dana"],
+        "ovo": ["ovo"],
+        "gopay": ["gopay"],
+        "gojek": ["gojek"],
+        "grab": ["grab"],
+    }
+
+    title = website_data.get("title", "").lower()
+    for brand, keywords in BRAND_PATTERNS.items():
+        # Check if brand mentioned in title/content but domain doesn't match
+        brand_mentioned = any(kw in title or kw in visible_text[:500] for kw in keywords)
+        brand_in_domain = any(kw in domain for kw in keywords)
+
+        if brand_mentioned and not brand_in_domain:
+            patterns.append(f"BRAND_IMPERSONATION: Brand '{brand}' disebutkan tapi domain '{domain}' bukan domain resmi")
+            risk_boost += 30
+            risk = "HIGH"
+            conclusion = f"Ini website yang menirukan {brand.upper()} tetapi bukan website resmi. JANGAN masukkan data login atau pembayaran."
+
+    # 5. Investment scam detection
+    INVEST_KEYWORDS = ["investasi", "invest", "profit", "return", "trading",
+                       "crypto", "bitcoin", "forex", "saham", "bisnis",
+                       "peluang usaha", "reseller", "dropship", "multi level"]
+    invest_count = sum(1 for kw in INVEST_KEYWORDS if kw in visible_text)
+    if invest_count >= 2:
+        patterns.append(f"INVESTMENT_SCAM: {invest_count} kata kunci investasi/MLM ditemukan")
+        risk_boost += 25
+        risk = "HIGH"
+        conclusion = f"Ini website investasi/MLM yang mencurigakan. Hati-hati dengan janji keuntungan besar."
+
+    # 6. Credential harvesting detection
+    if has_login_form and content_data.get("password_forms", 0) > 0:
+        # Check for suspicious patterns
+        external_scripts = content_data.get("external_scripts", [])
+        suspicious_scripts = [s for s in external_scripts if any(x in s.lower() for x in ["tracker", "analytics", "facebook", "pixel", "webhook"])]
+        if len(suspicious_scripts) > 2:
+            patterns.append("CREDENTIAL_HARVEST: Form login dengan banyak script pelacak")
+            risk_boost += 20
+
+    # 7. SSL analysis patterns
+    if ssl_data.get("is_self_signed"):
+        patterns.append("SSL_SELF_SIGNED: Sertifikat SSL self-signed (tidak terverifikasi)")
+        risk_boost += 15
+
+    if ssl_data.get("days_until_expiry") is not None and ssl_data["days_until_expiry"] < 7:
+        patterns.append(f"SSL_SHORT_LIVED: SSL akan habis dalam {ssl_data['days_until_expiry']} hari")
+        risk_boost += 10
+
+    # 8. DNS analysis patterns
+    if dns_data.get("a_records"):
+        # Check for Cloudflare IP (common for hiding real server)
+        cf_ips = ["104.16.", "104.17.", "104.18.", "104.19.", "104.20.", "104.21.",
+                  "104.22.", "104.23.", "104.24.", "104.25.", "104.26.", "104.27.",
+                  "104.28.", "104.29.", "104.30.", "104.31.",
+                  "172.67.", "172.66."]
+        is_cloudflare = any(any(ip.startswith(cf) for cf in cf_ips) for ip in dns_data["a_records"])
+        if is_cloudflare:
+            patterns.append("CLOUDFLARE_PROXY: IP tersembunyi di balik Cloudflare CDN")
+            risk_boost += 5
+
+    # Build conclusion if patterns found and no AI conclusion
+    if patterns and not conclusion:
+        if risk_boost >= 40:
+            conclusion = f"Situs ini berisiko TINGGI. Ditemukan {len(patterns)} indikator mencurigakan. JANGAN masukkan data apapun."
+        elif risk_boost >= 25:
+            conclusion = f"Situs ini perlu diwaspadai. Ada {len(patterns)} hal mencurigakan. Berhati-hatilah."
+        else:
+            conclusion = f"Ditemukan {len(patterns)} hal yang perlu diperhatikan pada situs ini."
+
+    return {
+        "detected": len(patterns) > 0,
+        "patterns": patterns,
+        "risk_boost": risk_boost,
+        "risk": risk,
+        "conclusion": conclusion,
+    }
+
+
 # ─── AI analysis ─────────────────────────────────────────────────────────
 
 def call_ai_analysis(url: str, domain: str, website_data: dict,
@@ -444,9 +594,16 @@ def call_ai_analysis(url: str, domain: str, website_data: dict,
         "7. Are there hidden iframes or suspicious redirects?",
         "8. Social engineering patterns in the visible text?",
         "9. Overall risk assessment with confidence score.",
+        "10. SPECIFIC PATTERNS TO CHECK:",
+        "    - IP Tracker / Grabify-like: short URL (urlto.me, bit.ly, tinyurl) → redirects to page that only collects IP, no real content",
+        "    - Payment scam: fake payment page with Indonesian methods (QRIS, DANA, OVO, GoPay, bank transfer) on non-official domain",
+        "    - Brand impersonation: domain similar to known brand (typosquatting, combosquatting) + login/payment form",
+        "    - Investment scam: promises high returns, crypto, trading, 'business opportunity', 'reseller'",
+        "    - Gambling/Judol: 'slot', 'casino', 'betting', 'togel', 'poker' on unofficial domain",
+        "    - Package/delivery scam: 'verifikasi', 'tracking', 'kirim ulang' with fake logistics brand",
         "",
         "Reply in Indonesian. Return JSON:",
-        '{"risk":"LOW|MEDIUM|HIGH|CRITICAL","score":0-100,"reasons":["..."],"brand_impersonation":"...or null","suspicious_forms":["..."],"se_patterns":["..."],"ai_summary":"detailed analysis in Indonesian"}'
+        '{"risk":"LOW|MEDIUM|HIGH|CRITICAL","score":0-100,"reasons":["..."],"brand_impersonation":"...or null","suspicious_forms":["..."],"se_patterns":["..."],"conclusion":"Kesimpulan singkat dalam bahasa Indonesia sederhana untuk orang awam: apakah ini phishing/scam/judol/penipuan/bukan, dan kenapa. Contoh: Ini website penipuan (scam) yang menirukan BCA untuk mencuri data login Anda. JANGAN masukkan data apapun.","ai_summary":"detailed analysis in Indonesian"}'
     ])
 
     prompt = "\n".join(prompt_parts)
@@ -490,10 +647,20 @@ def call_ai_analysis(url: str, domain: str, website_data: dict,
                 content = msg.get("reasoning", "")
 
             if content:
+                # Strip markdown code blocks if present
+                cleaned = content.strip()
+                if cleaned.startswith("```json"):
+                    cleaned = cleaned[7:]
+                elif cleaned.startswith("```"):
+                    cleaned = cleaned[3:]
+                if cleaned.endswith("```"):
+                    cleaned = cleaned[:-3]
+                cleaned = cleaned.strip()
+
                 # Try parse as JSON
                 try:
                     # Lenient parse
-                    ai_result = json.loads(content)
+                    ai_result = json.loads(cleaned)
                     return {
                         "ai_risk": ai_result.get("risk", "MEDIUM"),
                         "ai_score": ai_result.get("score", 50),
@@ -501,7 +668,8 @@ def call_ai_analysis(url: str, domain: str, website_data: dict,
                         "ai_brand_impersonation": ai_result.get("brand_impersonation"),
                         "ai_suspicious_forms": ai_result.get("suspicious_forms", []),
                         "ai_se_patterns": ai_result.get("se_patterns", []),
-                        "ai_summary": ai_result.get("ai_summary", content[:1000]),
+                        "ai_summary": ai_result.get("ai_summary", cleaned[:1000]),
+                        "ai_conclusion": ai_result.get("conclusion", ""),
                         "ai_model": data.get("model", AI_MODEL),
                         "ai_time_ms": elapsed_ms,
                     }
@@ -556,8 +724,22 @@ def recon():
     # Phase 2: Extract content from HTML
     content_data = extract_content(website_data.get("html", ""), url)
 
+    # Phase 2.5: Local heuristic pattern detection
+    local_patterns = detect_scam_patterns(url, domain, website_data, content_data, dns_data, ssl_data)
+
     # Phase 3: AI analysis with ALL data
     ai_result = call_ai_analysis(url, domain, website_data, content_data, dns_data, ssl_data)
+
+    # Merge local patterns into AI result
+    if local_patterns.get("detected"):
+        ai_result.setdefault("ai_local_patterns", local_patterns["patterns"])
+        ai_result.setdefault("ai_local_risk_boost", local_patterns.get("risk_boost", 0))
+        # Override risk if local detection is confident
+        if local_patterns.get("risk_boost", 0) > 30:
+            ai_result["ai_risk"] = local_patterns.get("risk", ai_result.get("ai_risk", "MEDIUM"))
+        # Add local conclusion
+        if local_patterns.get("conclusion"):
+            ai_result["ai_conclusion"] = local_patterns["conclusion"]
 
     # Build final result
     total_time_ms = int((time.time() - start_time) * 1000)

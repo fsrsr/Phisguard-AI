@@ -439,6 +439,9 @@ class WebsiteReconAgent {
                         else -> RiskLevel.LOW
                     }
 
+                    // Get conclusion from AI (simple language for non-tech users)
+                    val aiConclusion = json.get("ai")?.asJsonObject?.get("ai_conclusion")?.asString ?: ""
+
                     // Main AI analysis finding
                     val summary = buildString {
                         append("🤖 AI Analisis (Full Website Recon)\n")
@@ -452,7 +455,9 @@ class WebsiteReconAgent {
                         if (fetchError != null) append("Fetch error: $fetchError\n")
                         if (sslError != null) append("SSL error: $sslError\n")
                         if (dnsError != null) append("DNS error: $dnsError\n")
-                        if (aiSummary.isNotBlank()) {
+                        if (aiConclusion.isNotBlank()) {
+                            append("\n📋 KESIMPULAN: $aiConclusion\n")
+                        } else if (aiSummary.isNotBlank()) {
                             append("\nDetail: ${aiSummary.take(1000)}\n")
                         }
                     }

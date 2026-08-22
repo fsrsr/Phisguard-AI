@@ -1,30 +1,60 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Floating "Check this website" button — muncul di overlay saat browsing -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- Floating "Check this website" button — aesthetic, draggable anywhere -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/flFloatingRoot"
     android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:gravity="center_vertical"
-    android:background="@drawable/bg_floating_check"
-    android:paddingHorizontal="14dp"
-    android:paddingVertical="10dp"
-    android:elevation="8dp"
-    android:alpha="0.92">
+    android:layout_height="wrap_content">
 
-    <ImageView
-        android:id="@+id/ivFloatingIcon"
-        android:layout_width="20dp"
-        android:layout_height="20dp"
-        android:contentDescription="@string/recon_share_label"
-        android:src="@android:drawable/ic_menu_search"
-        android:tint="@color/white" />
+    <!-- Main circular button (small, aesthetic) -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/cvFloatingBtn"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_gravity="center"
+        android:background="@drawable/bg_floating_check_circular"
+        android:foreground="?attr/selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:focusable="true"
+        android:elevation="12dp"
+        app:cardCornerRadius="28dp"
+        app:cardElevation="0dp">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="6dp"
-        android:text="@string/floating_btn_check"
-        android:textColor="@color/white"
-        android:textSize="12sp"
-        android:fontFamily="sans-serif-medium" />
-</LinearLayout>
+        <ImageView
+            android:id="@+id/ivFloatingIcon"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:layout_gravity="center"
+            android:contentDescription="@string/recon_share_label"
+            android:src="@android:drawable/ic_menu_search"
+            android:tint="@color/white" />
+
+        <!-- Expandable label (shows on long press / after drag) -->
+        <TextView
+            android:id="@+id/tvFloatingLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center|end"
+            android:layout_marginEnd="8dp"
+            android:text="@string/floating_btn_check"
+            android:textColor="@color/white"
+            android:textSize="13sp"
+            android:fontFamily="sans-serif-medium"
+            android:visibility="gone"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="4dp"
+            android:background="@drawable/bg_floating_label"
+            android:alpha="0" />
+
+    </androidx.cardview.widget.CardView>
+
+    <!-- Drag handle indicator (subtle) -->
+    <View
+        android:id="@+id/vDragHandle"
+        android:layout_width="24dp"
+        android:layout_height="4dp"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="4dp"
+        android:background="@drawable/bg_drag_handle"
+        android:alpha="0.4" />
+</FrameLayout>

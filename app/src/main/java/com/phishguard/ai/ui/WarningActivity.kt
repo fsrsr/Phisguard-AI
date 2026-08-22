@@ -3,6 +3,8 @@ package com.phishguard.ai.ui
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.widget.ImageView
 import android.widget.ProgressBar
@@ -221,7 +223,8 @@ class WarningActivity : AppCompatActivity() {
             uploadToFirebase(url, reason, confidence)
 
             // 4. Tutup; service yang menavigasi kembali satu halaman
-            finish()
+            // Tunda sedikit untuk memastikan overlay tertutup sepenuhnya sebelum Back
+            Handler(Looper.getMainLooper()).postDelayed({ finish() }, 150)
         }
     }
 
