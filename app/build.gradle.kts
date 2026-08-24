@@ -85,6 +85,9 @@ dependencies {
 
     implementation("androidx.recyclerview:recyclerview:1.3.2")
 
+    // CardView — dipakai layout_floating_check.xml (Check Website button)
+    implementation("androidx.cardview:cardview:1.0.0")
+
     implementation("org.tensorflow:tensorflow-lite:2.13.0") {
         exclude(group = "org.tensorflow", module = "tensorflow-lite-api")
     }
