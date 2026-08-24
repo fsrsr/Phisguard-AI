@@ -62,17 +62,25 @@ class FloatingCheckManager(private val context: Context) {
      */
     @SuppressLint("ClickableViewAccessibility")
     fun show(url: String) {
-        if (!isEnabled) return
+        if (!isEnabled) {
+            Log.d(TAG, "Floating check disabled")
+            return
+        }
         if (!Settings.canDrawOverlays(context)) {
-            Log.w(TAG, "Overlay permission belum diberikan")
+            Log.w(TAG, "Overlay permission belum diberikan — silakan izinkan di Settings → Apps → PhishGuard → Display over other apps")
             return
         }
         currentUrl = url
 
-        // Update URL saja jika sudah tampil
+        // Update URL saja jika sudah tampil dan view masih valid
         if (isShowing && floatingView != null) {
             Log.d(TAG, "Update URL: $url")
             return
+        }
+
+        // Reset stale state
+        if (isShowing && floatingView == null) {
+            isShowing = false
         }
 
         try {

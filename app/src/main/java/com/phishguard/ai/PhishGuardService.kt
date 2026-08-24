@@ -117,6 +117,13 @@ class PhishGuardService : AccessibilityService() {
                     // ke peramban, kembali ke halaman sebelumnya.
                     scheduleBackAfterBlock()
                 }
+                // Tampilkan kembali floating button setelah warning ditutup
+                val currentBrowserUrl = readBrowserUrl()
+                if (currentBrowserUrl.isNotBlank()) {
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        floatingCheck?.show(currentBrowserUrl)
+                    }, 800)
+                }
                 return
             }
 
