@@ -218,12 +218,33 @@ class PhishGuardService : AccessibilityService() {
             packages.add("com.samsung.android.messaging")
             packages.add("com.android.mms")
 
-            // Force-add: Browser utama selalu aktif
+            // Force-add: SEMUA browser yang didukung isBrowser check + BROWSER_URL_VIEW_IDS —
+            // harus sinkron, kalau tidak event dari browser itu tidak akan pernah sampai
+            // ke onAccessibilityEvent() sama sekali (di-filter OS di level packageNames).
             packages.add("com.android.chrome")
             packages.add("org.mozilla.firefox")
             packages.add("com.sec.android.app.sbrowser")
             packages.add("com.microsoft.emmx")
             packages.add("com.opera.browser")
+            packages.add("com.opera.mini.native")
+            packages.add("com.brave.browser")
+            packages.add("com.duckduckgo.mobile.android")
+            packages.add("com.mi.globalbrowser")
+            packages.add("com.mi.globalbrowser.mini")
+            packages.add("com.coloros.browser")
+            packages.add("com.heytap.browser")
+            packages.add("com.vivo.browser")
+            packages.add("com.huawei.browser")
+            packages.add("com.kiwibrowser.browser")
+            packages.add("com.yandex.browser")
+            packages.add("org.adblockplus.browser")
+            packages.add("com.UCMobile.intl")
+            packages.add("com.uc.browser.en")
+            // In-app WebView browser (Facebook, TikTok, Twitter, YouTube)
+            packages.add("com.facebook.katana")
+            packages.add("com.zhiliaoapp.musically")
+            packages.add("com.twitter.android")
+            packages.add("com.google.android.youtube")
 
             info.packageNames = packages.toTypedArray()
             serviceInfo = info
