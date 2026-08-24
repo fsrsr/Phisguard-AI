@@ -1,58 +1,41 @@
-# ─────────────────────────────────────────────────────────────────────────
-# Aturan ProGuard PhishGuard
-#
-# PENTING: seluruh aturan di berkas ini sebelumnya menunjuk paket lama
-# `com.example.ai_project_singapore` yang sudah tidak ada sejak refactor ke
-# `com.phishguard.ai`. Akibatnya tidak satu pun berlaku, dan build release
-# akan menutup diri sendiri saat dibuka: AppIntegrityChecker mencari
-# kelasnya lewat Class.forName, kelas itu tereobfuscate, pemeriksaan gagal,
-# lalu MainActivity menampilkan dialog "aplikasi telah dimodifikasi".
-# ─────────────────────────────────────────────────────────────────────────
+# ProGuard rules for PhishGuard AI v2.0
+# Prevent minification from stripping TFLite native library and classes
 
-# Kelas yang dicari lewat nama saat runtime (AppIntegrityChecker.criticalClasses).
-# Nama-nama ini TIDAK boleh berubah, atau pemeriksaan integritas gagal.
+# Keep TFLite classes
+-keep class org.tensorflow.lite.** { *; }
+-keep class org.tensorflow.** { *; }
+-keep class com.google.android.gms.** { *; }
+
+# Keep native libraries
+-keep class **$Native { *; }
+-keep class **$Jni { *; }
+
+# Keep all native methods
+-keepclasseswithmembernames class * {
+    native <methods>;
+}
+
+# Keep R class
+-keep class **$R { *; }
+-keep class **$R$* { *; }
+
+# Keep Firebase classes
+-keep class com.google.firebase.** { *; }
+-keep class com.google.android.gms.** { *; }
+
+# Keep OkHttp (used by WebsiteReconAgent)
+-keep class com.squareup.okhttp3.** { *; }
+-keep interface com.squareup.okhttp3.** { *; }
+
+# Keep Gson (used by AI response parsing)
+-keep class com.google.gson.** { *; }
+
+# Keep AccessibilityService
 -keep class com.phishguard.ai.PhishGuardService { *; }
--keep class com.phishguard.ai.core.security.AppIntegrityChecker { *; }
--keep class com.phishguard.ai.receiver.SmsReceiver { *; }
--keep class com.phishguard.ai.service.CallMonitorService { *; }
-
-# Komponen yang dirujuk AndroidManifest lewat nama.
--keep class com.phishguard.ai.MainActivity { *; }
--keep class com.phishguard.ai.ui.WarningActivity { *; }
 -keep class com.phishguard.ai.service.SmsNotificationInterceptorService { *; }
 
-# Kontrak provider AI: ditukar-pasang, jadi bentuknya harus utuh.
--keep interface com.phishguard.ai.core.ai.AIModelProvider { *; }
--keep class com.phishguard.ai.core.ai.AnalysisInput { *; }
--keep class com.phishguard.ai.core.ai.AnalysisResult { *; }
--keep class com.phishguard.ai.core.ai.InputType { *; }
--keep class com.phishguard.ai.core.ai.ThreatCategory { *; }
--keep class com.phishguard.ai.core.ai.LayeredResult { *; }
--keep class com.phishguard.ai.core.ai.ThreatLayer { *; }
+# Keep all data classes
+-keep class com.phishguard.ai.** { *; }
 
-# Entity & DAO Room: dipetakan lewat refleksi dari nama field.
--keep class com.phishguard.ai.data.db.** { *; }
--keep class com.phishguard.ai.data.ActivityLogItem { *; }
--keep class com.phishguard.ai.data.ActivityLogItem$LogType { *; }
-
-# Firestore memetakan dokumen ke objek lewat nama properti.
--keepclassmembers class com.phishguard.ai.** {
-    public <init>();
-    public void set*(***);
-    public *** get*();
-}
-
-# Gson: nama field jadi kunci JSON.
--keep class com.google.gson.** { *; }
--keepclassmembers,allowobfuscation class * {
-    @com.google.gson.annotations.SerializedName <fields>;
-}
-
-# TensorFlow Lite (opsional, dipakai bila model dipasang).
--keep class org.tensorflow.lite.** { *; }
--dontwarn org.tensorflow.**
-
--keepattributes Signature
--keepattributes *Annotation*
--keepattributes SourceFile,LineNumberTable
--renamesourcefileattribute SourceFile
+# Don't obfuscate
+-dontobfuscate

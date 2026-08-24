@@ -289,6 +289,15 @@ class PhishGuardService : AccessibilityService() {
                     return
                 }
 
+                // Tampilkan floating "Check" button SEGERA begitu browser terdeteksi —
+                // tidak menunggu URL bar berhasil terbaca (browser baru/custom sering
+                // tidak match BROWSER_URL_VIEW_IDS, jadi jangan gate floating button
+                // dengan keberhasilan parsing URL). URL asli akan mengisi currentUrl
+                // begitu berhasil di-parse di bawah (floatingCheck?.show(analyzedUrl)).
+                if (floatingCheck?.currentUrlOrEmpty()?.isBlank() != false) {
+                    floatingCheck?.show("")
+                }
+
                 var rawUrl = ""
 
                 // === STRATEGI 1: findAccessibilityNodeInfosByViewId (Paling Akurat) ===
@@ -1081,7 +1090,22 @@ class PhishGuardService : AccessibilityService() {
             "com.android.chrome:id/url_bar",
             "com.sec.android.app.sbrowser:id/location_bar_edit_text",
             "org.mozilla.firefox:id/url_bar_title",
-            "org.mozilla.firefox:id/mozac_browser_toolbar_url_view"
+            "org.mozilla.firefox:id/mozac_browser_toolbar_url_view",
+            "com.microsoft.emmx:id/url_bar",
+            "com.opera.browser:id/url_field",
+            "com.opera.mini.native:id/url_field",
+            "com.brave.browser:id/url_bar",
+            "com.duckduckgo.mobile.android:id/omnibarTextInput",
+            "com.mi.globalbrowser:id/url",
+            "com.mi.globalbrowser.mini:id/url",
+            "com.coloros.browser:id/address_editor_text",
+            "com.heytap.browser:id/address_editor_text",
+            "com.vivo.browser:id/address",
+            "com.huawei.browser:id/url_bar",
+            "com.kiwibrowser.browser:id/url_bar",
+            "com.yandex.browser:id/bro_omnibox_address_title_text",
+            "com.UCMobile.intl:id/address_bar_edit_text",
+            "com.uc.browser.en:id/address_bar_edit_text"
         )
 
         /** Bisu sesaat setelah Back agar halaman yang memuat ulang tak memicu ulang. */

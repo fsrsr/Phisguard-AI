@@ -267,6 +267,9 @@ class FloatingCheckManager(private val context: Context) {
         currentUrl = url
     }
 
+    /** Baca URL yang tersimpan saat ini (untuk cek apakah sudah ada sebelum re-show). */
+    fun currentUrlOrEmpty(): String = currentUrl
+
     /** Cleanup — panggil saat service destroy. */
     fun destroy() {
         if (isShowing && floatingView != null) {
