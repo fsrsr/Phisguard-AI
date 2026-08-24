@@ -57,7 +57,7 @@
     <string name="setting_tts">Voice Alerts</string>
     <string name="setting_tts_desc">Speak warnings aloud when threats found</string>
     <string name="setting_about">About</string>
-    <string name="setting_version">Version 1.0</string>
+    <string name="setting_version">Version 2.0</string>
     <string name="setting_export">Export Laporan Aktivitas</string>
     <string name="setting_export_desc">Simpan log deteksi ke CSV di folder Download</string>
     <string name="setting_notif_access">Notifikasi Access (SMS/chat)</string>

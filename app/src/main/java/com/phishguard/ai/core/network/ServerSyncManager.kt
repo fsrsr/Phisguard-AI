@@ -265,7 +265,7 @@ class ServerSyncManager(private val context: Context) {
                 "source" to source,
                 "reason" to reason,
                 "timestamp" to System.currentTimeMillis(),
-                "app_version" to "1.0"
+                "app_version" to "2.0"
             ))
             
             apiClient.post("$customApiBaseUrl/report-url", json) { success, _ ->
