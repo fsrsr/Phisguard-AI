@@ -15,7 +15,6 @@ import android.view.WindowManager
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.FrameLayout
 import android.widget.TextView
-import androidx.cardview.widget.CardView
 import com.phishguard.ai.R
 import com.phishguard.ai.ui.CheckWebsiteActivity
 
@@ -91,7 +90,7 @@ class FloatingCheckManager(private val context: Context) {
             floatingView = inflater.inflate(R.layout.layout_floating_check, null)
 
             val rootView = floatingView!!.findViewById<View>(R.id.flFloatingRoot)
-            val cardBtn = floatingView!!.findViewById<CardView>(R.id.cvFloatingBtn)
+            val cardBtn = floatingView!!.findViewById<FrameLayout>(R.id.cvFloatingBtn)
             val labelTv = floatingView!!.findViewById<TextView>(R.id.tvFloatingLabel)
             val dragHandle = floatingView!!.findViewById<View>(R.id.vDragHandle)
 
@@ -243,7 +242,7 @@ class FloatingCheckManager(private val context: Context) {
     fun hide() {
         if (!isShowing || floatingView == null) return
         try {
-            val cardBtn = floatingView!!.findViewById<CardView>(R.id.cvFloatingBtn)
+            val cardBtn = floatingView!!.findViewById<FrameLayout>(R.id.cvFloatingBtn)
             // Exit animation
             cardBtn.animate()
                 .alpha(0f)

@@ -1,24 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Floating "Check this website" button — aesthetic, draggable anywhere -->
+<!-- Floating "Check this website" button — aesthetic, draggable anywhere.
+     Plain FrameLayout only (NO CardView): CardView requires Material theme
+     attributes that AccessibilityService's Context does not provide,
+     causing a silent InflateException every time. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/flFloatingRoot"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content">
 
-    <!-- Main circular button (small, aesthetic) -->
-    <androidx.cardview.widget.CardView
+    <!-- Main circular button (plain FrameLayout with drawable background) -->
+    <FrameLayout
         android:id="@+id/cvFloatingBtn"
         android:layout_width="56dp"
         android:layout_height="56dp"
         android:layout_gravity="center"
         android:background="@drawable/bg_floating_check_circular"
-        android:foreground="?attr/selectableItemBackgroundBorderless"
         android:clickable="true"
         android:focusable="true"
-        android:elevation="12dp"
-        app:cardCornerRadius="28dp"
-        app:cardElevation="0dp">
+        android:elevation="12dp">
 
         <ImageView
             android:id="@+id/ivFloatingIcon"
@@ -46,7 +45,7 @@
             android:background="@drawable/bg_floating_label"
             android:alpha="0" />
 
-    </androidx.cardview.widget.CardView>
+    </FrameLayout>
 
     <!-- Drag handle indicator (subtle) -->
     <View
