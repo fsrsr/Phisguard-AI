@@ -392,7 +392,7 @@ def detect_scam_patterns(url: str, domain: str, website_data: dict,
             patterns.append(f"REDIRECT: Domain berubah dari {domain} ke {final_domain}")
             risk_boost += 10
             # Check if destination has minimal content (IP tracker pattern)
-            if content_data.get("form_count", 0) == 0 and content_data.get("link_count", 0) < 3:
+            if content_data.get("form_count", 0) == 0 and len(content_data.get("links", [])) < 3:
                 patterns.append("MINIMAL_CONTENT: Halaman kosong/tanpa konten nyata → indikasi IP tracker")
                 risk_boost += 25
 
@@ -499,10 +499,13 @@ def detect_scam_patterns(url: str, domain: str, website_data: dict,
     # Build conclusion if patterns found and no AI conclusion
     if patterns and not conclusion:
         if risk_boost >= 40:
+            risk = "HIGH"
             conclusion = f"Situs ini berisiko TINGGI. Ditemukan {len(patterns)} indikator mencurigakan. JANGAN masukkan data apapun."
         elif risk_boost >= 25:
+            risk = "MEDIUM"
             conclusion = f"Situs ini perlu diwaspadai. Ada {len(patterns)} hal mencurigakan. Berhati-hatilah."
         else:
+            risk = "LOW"
             conclusion = f"Ditemukan {len(patterns)} hal yang perlu diperhatikan pada situs ini."
 
     return {
@@ -734,9 +737,13 @@ def recon():
     if local_patterns.get("detected"):
         ai_result.setdefault("ai_local_patterns", local_patterns["patterns"])
         ai_result.setdefault("ai_local_risk_boost", local_patterns.get("risk_boost", 0))
-        # Override risk if local detection is confident
+        # Override risk if local detection is confident — and keep score consistent
+        # with the overridden label, otherwise UI shows e.g. risk=HIGH score=55 (looks MEDIUM).
         if local_patterns.get("risk_boost", 0) > 30:
-            ai_result["ai_risk"] = local_patterns.get("risk", ai_result.get("ai_risk", "MEDIUM"))
+            overridden_risk = local_patterns.get("risk", ai_result.get("ai_risk", "MEDIUM"))
+            ai_result["ai_risk"] = overridden_risk
+            min_score_for_risk = {"HIGH": 70, "MEDIUM": 40, "LOW": 0}.get(overridden_risk, 0)
+            ai_result["ai_score"] = max(ai_result.get("ai_score", 0), min_score_for_risk)
         # Add local conclusion
         if local_patterns.get("conclusion"):
             ai_result["ai_conclusion"] = local_patterns["conclusion"]
