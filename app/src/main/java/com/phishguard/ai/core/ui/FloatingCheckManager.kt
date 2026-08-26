@@ -3,6 +3,7 @@ package com.phishguard.ai.core.ui
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.graphics.PixelFormat
 import android.os.Build
 import android.provider.Settings
@@ -36,6 +37,21 @@ class FloatingCheckManager(private val context: Context) {
 
     private val prefs by lazy {
         context.getSharedPreferences("floating_check", Context.MODE_PRIVATE)
+    }
+
+    // Simpan strong reference — SharedPreferences hanya pegang WeakReference,
+    // listener anonim bisa di-GC kalau tidak ditahan di sini.
+    private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { sp, key ->
+        if (key == "enabled" && !sp.getBoolean("enabled", true)) {
+            hide()
+        }
+    }
+
+    init {
+        // Dengar perubahan toggle real-time — kalau user matikan Floating Check
+        // di Settings sementara tombol sedang tampil, langsung sembunyikan.
+        // Tanpa ini, toggle OFF baru berlaku di kunjungan URL berikutnya.
+        prefs.registerOnSharedPreferenceChangeListener(prefListener)
     }
 
     /** Toggle aktivasi dari Settings/Protection. */
