@@ -1,5 +1,6 @@
 package com.phishguard.ai.ui
 
+import com.phishguard.ai.core.geo.ThreatLocationTagger
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -147,6 +148,13 @@ class WarningActivity : AppCompatActivity() {
                         putExtra("phone_number", phoneNumber)
                     }
                     logActivity("Blocked SMS from: $phoneNumber", "SMS", "PHISHING", countAsBlocked = true)
+                    ThreatLocationTagger.record(
+                        context = applicationContext,
+                        crimeType = "SCAM_MESSAGE",
+                        severity = confidence,
+                        source = source.ifBlank { "SMS" },
+                        label = phoneNumber
+                    )
                     Toast.makeText(this, getString(R.string.risk_number_blocked, phoneNumber), Toast.LENGTH_SHORT).show()
                     finish()
                 }
@@ -221,6 +229,16 @@ class WarningActivity : AppCompatActivity() {
 
             // 3. Bagikan ke database komunitas agar pengguna lain ikut terlindungi
             uploadToFirebase(url, reason, confidence)
+
+            // Petakan kejadiannya. Tidak melakukan apa-apa kecuali pengguna
+            // menyalakan Peta Pola Ancaman sendiri di Pengaturan.
+            ThreatLocationTagger.record(
+                context = applicationContext,
+                crimeType = if (reason.contains("judi", ignoreCase = true)) "JUDOL" else "PHISHING",
+                severity = confidence,
+                source = source.ifBlank { "Browser" },
+                label = url.removePrefix("https://").removePrefix("http://").substringBefore('/')
+            )
 
             // 4. Tutup; service yang menavigasi kembali satu halaman
             // Tunda sedikit untuk memastikan overlay tertutup sepenuhnya sebelum Back

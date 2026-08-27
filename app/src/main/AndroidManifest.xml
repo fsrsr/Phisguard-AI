@@ -19,6 +19,9 @@
     <!-- Notifications -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Peta pola ancaman (opt-in). COARSE saja, lalu dibulatkan ~1 km. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <!-- Network -->
     <uses-permission android:name="android.permission.INTERNET" />
 
@@ -84,6 +87,11 @@
             android:name=".service.CallMonitorService"
             android:exported="false"
             android:foregroundServiceType="microphone" />
+
+        <activity
+            android:name=".ui.ThreatMapActivity"
+            android:exported="false"
+            android:label="@string/map_title" />
 
         <!-- Warning Overlay Activity -->
         <activity
