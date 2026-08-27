@@ -24,6 +24,61 @@ import java.util.Locale
 
 class SettingsFragment : Fragment() {
 
+    private companion object { const val REQ_LOKASI = 3001 }
+
+    /**
+     * Peta Pola Ancaman — opt-in penuh. Menyalakannya berarti aplikasi mulai
+     * menyimpan perkiraan lokasi tiap ancaman yang diblokir, jadi izinnya
+     * diminta di sini dan togglenya baru menyala setelah diberikan.
+     */
+    private fun siapkanPetaPola(view: View) {
+        val p = AppPreferences(requireContext())
+        val sw = view.findViewById<SwitchMaterial>(R.id.switchThreatMap)
+        sw?.isChecked = p.threatMapEnabled && punyaIzinLokasi()
+        sw?.setOnCheckedChangeListener { tampilan, dicentang ->
+            if (dicentang && !punyaIzinLokasi()) {
+                tampilan.isChecked = false
+                p.threatMapEnabled = false
+                requestPermissions(arrayOf(android.Manifest.permission.ACCESS_COARSE_LOCATION), REQ_LOKASI)
+                return@setOnCheckedChangeListener
+            }
+            p.threatMapEnabled = dicentang
+        }
+        view.findViewById<android.view.View>(R.id.btnOpenMap)?.setOnClickListener {
+            startActivity(android.content.Intent(requireContext(), ThreatMapActivity::class.java))
+        }
+        view.findViewById<android.view.View>(R.id.btnClearMap)?.setOnClickListener {
+            kotlin.concurrent.thread {
+                try {
+                    com.phishguard.ai.data.db.PhishingDatabase
+                        .getInstance(requireContext().applicationContext)
+                        .threatLocationDao().deleteAll()
+                } catch (_: Exception) {}
+                activity?.runOnUiThread {
+                    android.widget.Toast.makeText(context, R.string.map_cleared, android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun punyaIzinLokasi(): Boolean =
+        androidx.core.content.ContextCompat.checkSelfPermission(
+            requireContext(), android.Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != REQ_LOKASI) return
+        val ok = grantResults.isNotEmpty() &&
+                grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED
+        AppPreferences(requireContext()).threatMapEnabled = ok
+        view?.findViewById<SwitchMaterial>(R.id.switchThreatMap)?.isChecked = ok
+        if (!ok) android.widget.Toast.makeText(context, R.string.map_need_permission, android.widget.Toast.LENGTH_LONG).show()
+    }
+
+
     private lateinit var prefs: AppPreferences
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
@@ -103,7 +158,9 @@ class SettingsFragment : Fragment() {
         // Export Activity Log ke CSV (bukti laporan, mis. untuk kepolisian)
         val btnExport = view.findViewById<LinearLayout>(R.id.btnExportLog)
         btnExport.setOnClickListener { exportActivityLog() }
-    }
+    
+        siapkanPetaPola(view)
+}
 
     /**
      * Tulis log aktivitas (SharedPreferences "activity_log") ke CSV di
