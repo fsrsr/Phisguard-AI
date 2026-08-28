@@ -41,6 +41,29 @@ abstract class PhishingDatabase : RoomDatabase() {
             }
         }
 
+        // v3 menambahkan tabel threat_locations (fitur Peta Pola Ancaman).
+        // Tanpa migration ini, device yang sudah punya DB v2 crash saat
+        // upgrade ("migration from 2 to 3 was required but not found") —
+        // setiap akses DB (recon, blacklist, sync) ikut gagal.
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `threat_locations` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `latitude` REAL NOT NULL,
+                        `longitude` REAL NOT NULL,
+                        `timestamp` INTEGER NOT NULL,
+                        `crimeType` TEXT NOT NULL,
+                        `severity` REAL NOT NULL,
+                        `source` TEXT NOT NULL DEFAULT '',
+                        `label` TEXT NOT NULL DEFAULT ''
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         @Volatile
         private var INSTANCE: PhishingDatabase? = null
 
@@ -51,7 +74,7 @@ abstract class PhishingDatabase : RoomDatabase() {
                     PhishingDatabase::class.java,
                     "phishing_database"
                 )
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
                 INSTANCE = instance
                 instance
