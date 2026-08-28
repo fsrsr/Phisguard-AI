@@ -522,13 +522,20 @@ class WebsiteReconAgent {
     }
 
     private fun buildSummary(risk: RiskLevel, findings: List<Finding>, seIndicators: List<String>): String {
-        return when (risk) {
+        val base = when (risk) {
             RiskLevel.CRITICAL -> "⚠️ SANGAT BERBAHAYA! Situs ini menunjukkan banyak indikator penipuan. JANGAN masukkan data apapun."
             RiskLevel.HIGH -> "⚠️ BERBAHAYA. Situs ini memiliki beberapa ciri phishing. Disarankan untuk tidak melanjutkan."
             RiskLevel.MEDIUM -> "🔍 PERLU DIPERIKSA. Beberapa indikator mencurigakan ditemukan. Hati-hati sebelum memasukkan data."
             RiskLevel.LOW -> "ℹ️ RENDAH RISIKO. Beberapa hal perlu diperhatikan, tapi tidak ada ancaman signifikan."
             RiskLevel.SAFE -> "✅ AMAN. Tidak ditemukan indikator phishing atau social engineering yang signifikan."
         }
+        // callAiRecon gagal terhubung (server cloud down/URL tunnel kadaluarsa) → hasil di atas
+        // HANYA dari heuristik lokal dangkal (TLD/DNS/SSL), belum analisis konten AI yang kritis.
+        // Jangan biarkan itu tersembunyi di balik satu Finding — pengguna awam perlu tahu batasnya.
+        val aiUnreachable = findings.any { it.category == "Error" || it.category == "Recon Error" }
+        return if (aiUnreachable) {
+            "$base\n\n⚠️ Catatan: server AI cloud tidak dapat dihubungi saat ini — ini baru hasil pengecekan lokal dasar (TLD, DNS, SSL), BELUM analisis konten mendalam. Jangan jadikan \"aman\" di atas sebagai kepastian."
+        } else base
     }
 
     private fun extractDomain(url: String): String {

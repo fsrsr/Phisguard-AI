@@ -110,6 +110,7 @@
     <string name="recon_title_suspicious">Situs ini perlu diperiksa</string>
     <string name="recon_title_low_risk">Rendah risiko</string>
     <string name="recon_title_safe">Situs ini aman</string>
+    <string name="recon_conclusion_title">📋 Kesimpulan</string>
     <string name="recon_findings_title">Temuan Analisis</string>
     <string name="recon_se_title">⚠ Indikator Social Engineering</string>
     <string name="recon_btn_close">Tutup</string>

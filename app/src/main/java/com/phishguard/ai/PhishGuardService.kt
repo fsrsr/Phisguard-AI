@@ -45,6 +45,8 @@ class PhishGuardService : AccessibilityService() {
     // warning yang sama lagi.
     private var ignoredMessage: String = ""
     private var warningShownForUrl: String = ""
+    /** Paket browser yang sedang menampilkan warning — dipakai fallback Back (lihat [openBrowserHome]). */
+    private var warningShownForPackage: String = ""
 
 
     // Pemindaian ulang isi halaman. Analisis pertama berjalan pada
@@ -399,7 +401,7 @@ class PhishGuardService : AccessibilityService() {
                 // CEK HITL BLACKLIST
                 if (hitlBlacklistUrls.contains(normalizedUrl)) {
                     Log.d(TAG, "HITL Blacklist hit: $normalizedUrl")
-                    launchWarning(rawUrl, "URL ini telah dilaporkan sebagai phishing.", sourceName, true)
+                    launchWarning(rawUrl, "URL ini telah dilaporkan sebagai phishing.", sourceName, true, browserPackage = packageName)
                     return
                 }
 
@@ -419,7 +421,7 @@ class PhishGuardService : AccessibilityService() {
                 // (brand, judol wordlist, hyphen) dilewati dan situs lolos.
                 val targetUrl = analyzedUrl
                 pipeline?.analyzeUrl(targetUrl, sourceName, pageSnippet) { result ->
-                    handleAnalysisResult(result, targetUrl, sourceName)
+                    handleAnalysisResult(result, targetUrl, sourceName, packageName)
                 }
 
                 // Halaman belum dirender saat ini. Periksa lagi setelah
@@ -623,6 +625,7 @@ class PhishGuardService : AccessibilityService() {
      */
     private fun scheduleBackAfterBlock() {
         val blockedUrl = normalizeUrl(warningShownForUrl)
+        val browserPackage = warningShownForPackage
         Handler(Looper.getMainLooper()).postDelayed({
             try {
                 val ok = performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
@@ -633,9 +636,9 @@ class PhishGuardService : AccessibilityService() {
                 // punya riwayat, jadi Back tidak punya tujuan dan pengguna
                 // tertinggal di situs berbahaya — peringatan lalu muncul
                 // berulang. Periksa hasilnya, dan hanya kalau Back terbukti
-                // gagal, mundur ke layar utama.
+                // gagal, mundur ke beranda browser (bukan keluar aplikasi).
                 Handler(Looper.getMainLooper()).postDelayed({
-                    verifyLeftBlockedSite(blockedUrl, attempt = 1)
+                    verifyLeftBlockedSite(blockedUrl, browserPackage, attempt = 1)
                 }, BACK_VERIFY_MS)
             } catch (e: Exception) {
                 Log.e(TAG, "back-after-block error", e)
@@ -648,10 +651,10 @@ class PhishGuardService : AccessibilityService() {
      *
      * Diperiksa dua kali sebelum menyimpulkan. Pada jaringan lambat, Back
      * ke halaman sebelumnya butuh waktu; sekali periksa bisa keliru menilai
-     * "tanpa riwayat" lalu memulangkan pengguna ke layar utama padahal
-     * Back-nya sebentar lagi berhasil.
+     * "tanpa riwayat" lalu memulangkan pengguna sebelum Back-nya sebentar
+     * lagi berhasil.
      */
-    private fun verifyLeftBlockedSite(blockedUrl: String, attempt: Int) {
+    private fun verifyLeftBlockedSite(blockedUrl: String, browserPackage: String, attempt: Int) {
         if (blockedUrl.isBlank()) return
         val current = normalizeUrl(readBrowserUrl())
         if (current.isBlank() || current != blockedUrl) {
@@ -660,16 +663,40 @@ class PhishGuardService : AccessibilityService() {
         }
         if (attempt < BACK_VERIFY_ATTEMPTS) {
             Handler(Looper.getMainLooper()).postDelayed({
-                verifyLeftBlockedSite(blockedUrl, attempt + 1)
+                verifyLeftBlockedSite(blockedUrl, browserPackage, attempt + 1)
             }, BACK_VERIFY_MS)
             return
         }
-        Log.d(TAG, "Back tidak punya halaman tujuan — mundur ke layar utama.")
-        try {
-            performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME)
+        Log.d(TAG, "Back tidak punya halaman tujuan — buka beranda browser, jangan keluar app.")
+        if (!openBrowserHome(browserPackage)) {
+            // Browser tak diketahui/tak bisa dibuka — baru sebagai upaya terakhir ke home screen.
+            try {
+                performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME)
+                backMuteUntil = System.currentTimeMillis() + BACK_MUTE_MS
+            } catch (e: Exception) {
+                Log.e(TAG, "fallback home error", e)
+            }
+        }
+    }
+
+    /**
+     * Navigasi ke halaman beranda/pencarian browser yang sama (mis. Google),
+     * bukan ke home screen Android — situs berbahaya sudah ditinggalkan tapi
+     * pengguna tetap di dalam browser, bukan terlempar keluar dari Chrome.
+     */
+    private fun openBrowserHome(browserPackage: String): Boolean {
+        if (browserPackage.isBlank()) return false
+        return try {
+            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(BROWSER_HOME_URL)).apply {
+                setPackage(browserPackage)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
             backMuteUntil = System.currentTimeMillis() + BACK_MUTE_MS
+            true
         } catch (e: Exception) {
-            Log.e(TAG, "fallback home error", e)
+            Log.e(TAG, "openBrowserHome error", e)
+            false
         }
     }
 
@@ -728,14 +755,14 @@ class PhishGuardService : AccessibilityService() {
 
             Log.d(TAG, "Pindai ulang isi halaman $url (${text.length} karakter)")
             pipeline?.analyzeUrl(url, source, text) { result ->
-                if (result.isThreat) handleAnalysisResult(result, url, source)
+                if (result.isThreat) handleAnalysisResult(result, url, source, browserPackage)
             }
         }
         pendingRescan = task
         rescanHandler.postDelayed(task, RESCAN_DELAY_MS)
     }
 
-    private fun handleAnalysisResult(result: AnalysisResult, item: String, source: String) {
+    private fun handleAnalysisResult(result: AnalysisResult, item: String, source: String, browserPackage: String = "") {
         if (!result.isThreat) {
             sendLogToUI("✅ Aman: ${item.take(80)}", source, "SAFE")
             if (normalizeUrl(item) == normalizeUrl(warningShownForUrl)) {
@@ -749,7 +776,7 @@ class PhishGuardService : AccessibilityService() {
 
         if (dangerous) {
             sendLogToUI("⚠️ ${result.threatType}: ${item.take(80)} — ${result.reason}", source, "PHISHING")
-            launchWarning(item, result.reason, source, confidence = result.confidence)
+            launchWarning(item, result.reason, source, confidence = result.confidence, browserPackage = browserPackage)
         } else {
             sendLogToUI("🟡 Mencurigakan: ${item.take(80)} — ${result.reason}", source, "SUSPICIOUS")
             notifySuspicious(item, result.reason, result.confidence)
@@ -935,10 +962,12 @@ class PhishGuardService : AccessibilityService() {
         reason: String,
         source: String,
         isPermanentBlock: Boolean = false,
-        confidence: Float = 0.9f
+        confidence: Float = 0.9f,
+        browserPackage: String = ""
     ) {
         try {
             warningShownForUrl = url
+            warningShownForPackage = browserPackage
             floatingCheck?.hide() // Sembunyikan saat warning muncul
             val intent = Intent(this, WarningActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -1135,6 +1164,8 @@ class PhishGuardService : AccessibilityService() {
         private const val BACK_VERIFY_MS = 1400L
         /** Berapa kali diperiksa sebelum menyimpulkan Back tak punya tujuan. */
         private const val BACK_VERIFY_ATTEMPTS = 2
+        /** Halaman "beranda" yang dibuka saat Back tak punya tujuan (tetap di dalam browser). */
+        private const val BROWSER_HOME_URL = "https://www.google.com"
 
         /** Jeda sebelum isi halaman diperiksa ulang. */
         private const val RESCAN_DELAY_MS = 2500L
