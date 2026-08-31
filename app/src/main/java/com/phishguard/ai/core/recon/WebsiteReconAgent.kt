@@ -488,18 +488,18 @@ class WebsiteReconAgent {
                     val website = json.get("website")?.asJsonObject
                     val statusCode = website?.get("status_code")?.asInt
                     val title = website?.get("title")?.asString ?: ""
-                    val fetchError = website?.get("fetch_error")?.asString
+                    val fetchError = website?.get("fetch_error")?.let { if (it.isJsonNull) null else it.asString }
 
                     // SSL data
                     val ssl = json.get("ssl")?.asJsonObject
                     val sslValid = ssl?.get("valid")?.asBoolean ?: false
-                    val sslIssuer = ssl?.get("issuer")?.asString ?: ""
-                    val sslError = ssl?.get("error")?.asString
+                    val sslIssuer = ssl?.get("issuer")?.let { if (it.isJsonNull) null else it.asString } ?: ""
+                    val sslError = ssl?.get("error")?.let { if (it.isJsonNull) null else it.asString }
 
                     // DNS data
                     val dns = json.get("dns")?.asJsonObject
                     val aRecords = dns?.get("a_records")?.asJsonArray?.map { it.asString }?.toList() ?: emptyList()
-                    val dnsError = dns?.get("error")?.asString
+                    val dnsError = dns?.get("error")?.let { if (it.isJsonNull) null else it.asString }
 
                     // Content data
                     val content = json.get("content")?.asJsonObject
