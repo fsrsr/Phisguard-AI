@@ -369,61 +369,6 @@
                         android:layout_height="wrap_content" />
                 </LinearLayout>
 
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:paddingVertical="14dp">
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:fontFamily="sans-serif-medium"
-                                android:text="@string/map_setting"
-                                android:textColor="@color/text_primary"
-                                android:textSize="15sp" />
-
-                            <TextView
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
-                                android:text="@string/map_setting_desc"
-                                android:textColor="@color/text_secondary"
-                                android:textSize="12sp" />
-                        </LinearLayout>
-
-                        <com.google.android.material.switchmaterial.SwitchMaterial
-                            android:id="@+id/switchThreatMap"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" />
-                    </LinearLayout>
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnOpenMap"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:minHeight="46dp"
-                        android:text="@string/map_open"
-                        android:textAllCaps="false" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnClearMap"
-                        style="@style/Widget.MaterialComponents.Button.TextButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:minHeight="46dp"
-                        android:text="@string/map_clear"
-                        android:textAllCaps="false"
-                        android:textColor="@color/error" />
-
                 <View android:layout_width="match_parent" android:layout_height="1dp"
                     android:background="@color/divider" android:layout_marginHorizontal="14dp"/>
 

@@ -45,11 +45,6 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean(KEY_NOTIFICATIONS, true)
         set(value) = prefs.edit().putBoolean(KEY_NOTIFICATIONS, value).apply()
 
-    /** Peta pola ancaman. MATI secara bawaan — lihat ThreatLocationTagger. */
-    var threatMapEnabled: Boolean
-        get() = prefs.getBoolean(KEY_THREAT_MAP, false)
-        set(value) = prefs.edit().putBoolean(KEY_THREAT_MAP, value).apply()
-
     var ttsEnabled: Boolean
         get() = prefs.getBoolean(KEY_TTS, false)
         set(value) = prefs.edit().putBoolean(KEY_TTS, value).apply()
@@ -132,7 +127,6 @@ class AppPreferences(context: Context) {
         private const val KEY_CALL_PROTECTION = "call_protection"
         private const val KEY_NOTIFICATIONS = "notifications"
         private const val KEY_TTS = "tts"
-        private const val KEY_THREAT_MAP = "threat_map"
         private const val KEY_CUSTOM_APPS = "custom_monitored_apps"
     }
 }

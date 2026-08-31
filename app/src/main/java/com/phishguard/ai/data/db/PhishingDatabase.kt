@@ -16,9 +16,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * - OfficialUrl: Database domain resmi (whitelist)
  */
 @Database(
-    entities = [PhishingUrl::class, PhishingNumber::class, OfficialUrl::class,
-        ThreatLocation::class],
-    version = 3,
+    entities = [PhishingUrl::class, PhishingNumber::class, OfficialUrl::class],
+    version = 2,
     exportSchema = false
 )
 abstract class PhishingDatabase : RoomDatabase() {
@@ -26,7 +25,6 @@ abstract class PhishingDatabase : RoomDatabase() {
     abstract fun phishingUrlDao(): PhishingUrlDao
     abstract fun phishingNumberDao(): PhishingNumberDao
     abstract fun officialUrlDao(): OfficialUrlDao
-    abstract fun threatLocationDao(): ThreatLocationDao
 
     companion object {
         private val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -41,26 +39,14 @@ abstract class PhishingDatabase : RoomDatabase() {
             }
         }
 
-        // v3 menambahkan tabel threat_locations (fitur Peta Pola Ancaman).
-        // Tanpa migration ini, device yang sudah punya DB v2 crash saat
-        // upgrade ("migration from 2 to 3 was required but not found") —
-        // setiap akses DB (recon, blacklist, sync) ikut gagal.
-        private val MIGRATION_2_3 = object : Migration(2, 3) {
+        // Fitur Peta Pola Ancaman (tabel threat_locations, v3) dicabut.
+        // Device yang sempat mencicipi branch itu punya DB di v3 di disk —
+        // turunkan ke v2 dengan drop tabelnya saja, bukan
+        // fallbackToDestructiveMigration yang akan menghapus SEMUA data
+        // (blacklist/whitelist URL ikut lenyap).
+        private val MIGRATION_3_2 = object : Migration(3, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL(
-                    """
-                    CREATE TABLE IF NOT EXISTS `threat_locations` (
-                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                        `latitude` REAL NOT NULL,
-                        `longitude` REAL NOT NULL,
-                        `timestamp` INTEGER NOT NULL,
-                        `crimeType` TEXT NOT NULL,
-                        `severity` REAL NOT NULL,
-                        `source` TEXT NOT NULL DEFAULT '',
-                        `label` TEXT NOT NULL DEFAULT ''
-                    )
-                    """.trimIndent()
-                )
+                db.execSQL("DROP TABLE IF EXISTS threat_locations")
             }
         }
 
@@ -74,7 +60,7 @@ abstract class PhishingDatabase : RoomDatabase() {
                     PhishingDatabase::class.java,
                     "phishing_database"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_3_2)
                 .build()
                 INSTANCE = instance
                 instance

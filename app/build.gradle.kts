@@ -72,11 +72,6 @@ android {
 }
 
 dependencies {
-    // Peta pola ancaman. osmdroid dipilih ketimbang Google Maps karena
-    // tidak butuh API key — satu langkah provisioning yang bisa gagal
-    // diam-diam, untuk fitur yang sifatnya opsional.
-    implementation("org.osmdroid:osmdroid-android:6.1.20")
-
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
@@ -98,8 +93,6 @@ dependencies {
     }
 
     testImplementation(libs.junit)
-    // org.json di unit test JVM hanya stub; implementasi asli untuk test.
-    testImplementation("org.json:json:20240303")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 
