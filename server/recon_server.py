@@ -20,20 +20,78 @@ import bs4
 import dns.resolver
 import requests
 from flask import Flask, jsonify, request
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 # ─── Config ──────────────────────────────────────────────────────────────
 # OpenRouter direct (9router API keys don't work for /v1/chat/completions)
 AI_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
 AI_API_KEY = "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"
 AI_MODEL = "google/gemini-3.7-flash"  # model name for AI analysis via OpenRouter
-REQUEST_TIMEOUT = 15  # seconds for fetching target website
+REQUEST_TIMEOUT = 20  # seconds for fetching target website
 AI_TIMEOUT = 60       # seconds for AI response
 MAX_HTML_SIZE = 500_000  # 500KB max HTML to analyze
+
+# Kunci bersama antara app Android dan server ini. Tanpa ini endpoint publik
+# bisa dipakai siapa pun yang nemu IP:port — dalam <1 jam server ini expose,
+# sudah ada bot random nyoba scan (lihat log). Setiap panggilan AI (OpenRouter)
+# ada biayanya, jadi endpoint tanpa kunci = orang lain bisa habiskan saldo kita.
+RECON_API_KEY = "Cqg7J0lKRDojIW7FvrjjWQEqSG_VOrHNXGCk5tjjDak"
+
+# Halaman anti-bot (Cloudflare/CAPTCHA/dst.) yang ke-fetch bukan berarti kita
+# "berhasil" — itu berarti kita TIDAK PERNAH melihat konten asli sama sekali.
+# Tanpa deteksi ini, halaman "Just a moment..." diam-diam diperlakukan sebagai
+# konten sungguhan → AI menyimpulkan "aman" dari CAPTCHA, bukan dari situsnya.
+BOT_CHALLENGE_MARKERS = [
+    "just a moment", "verifying you are human", "checking your browser before accessing",
+    "attention required! | cloudflare", "enable javascript and cookies to continue",
+    "please verify you are a human", "request unsuccessful. incapsula",
+    "distil_r_captcha", "perimeterx", "datadome", "sorry, you have been blocked",
+    "captcha-delivery.com", "access denied", "unusual traffic from your computer",
+]
+
+
+def root_domain(hostname: str) -> str:
+    """2 label terakhir — naif (tidak paham eTLD majemuk kayak .co.id), cukup
+    untuk bedain 'situs sama' (bare->www, http->https) vs 'lompat domain lain'."""
+    parts = (hostname or "").removeprefix("www.").split(".")
+    return ".".join(parts[-2:]) if len(parts) > 2 else ".".join(parts)
+
+
+def looks_like_bot_challenge(html: str, title: str, status_code, headers: dict) -> bool:
+    """Heuristik: apakah yang ke-fetch itu halaman tantangan anti-bot, bukan konten asli?"""
+    text = ((html or "")[:4000] + " " + (title or "")).lower()
+    if any(marker in text for marker in BOT_CHALLENGE_MARKERS):
+        return True
+    server_header = (headers or {}).get("Server", "").lower()
+    if status_code == 403 and "cloudflare" in server_header:
+        return True
+    if (headers or {}).get("Cf-Mitigated"):
+        return True
+    return False
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("phishguard-recon")
 
 app = Flask(__name__)
+limiter = Limiter(get_remote_address, app=app, default_limits=[])
+
+
+def require_api_key(view):
+    """Tolak request tanpa 'Authorization: Bearer <RECON_API_KEY>' yang cocok."""
+    from functools import wraps
+
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        auth = request.headers.get("Authorization", "")
+        token = auth.removeprefix("Bearer ").strip()
+        if token != RECON_API_KEY:
+            log.warning(f"Auth ditolak dari {get_remote_address()}")
+            return jsonify({"error": "Unauthorized"}), 401
+        return view(*args, **kwargs)
+
+    return wrapped
+
 
 # ─── Form extractor ──────────────────────────────────────────────────────
 
@@ -137,6 +195,7 @@ def fetch_website(url: str) -> dict:
         "redirects": [],
         "fetch_error": None,
         "fetch_time_ms": 0,
+        "blocked_by_antibot": False,
     }
 
     try:
@@ -178,12 +237,18 @@ def fetch_website(url: str) -> dict:
         title_tag = soup.find("title")
         result["title"] = title_tag.get_text(strip=True) if title_tag else ""
 
+        # Halaman tantangan anti-bot ≠ konten asli — tandai eksplisit supaya
+        # AI dan client tahu "berhasil fetch" di sini tidak berarti apa-apa.
+        result["blocked_by_antibot"] = looks_like_bot_challenge(
+            html, result["title"], result["status_code"], result["headers"]
+        )
+
     except requests.exceptions.SSLError as e:
         result["fetch_error"] = f"SSL Error: {str(e)[:200]}"
     except requests.exceptions.ConnectionError as e:
         result["fetch_error"] = f"Connection Error: {str(e)[:200]}"
     except requests.exceptions.Timeout:
-        result["fetch_error"] = "Timeout after 15s"
+        result["fetch_error"] = f"Timeout after {REQUEST_TIMEOUT}s"
     except Exception as e:
         result["fetch_error"] = f"Error: {str(e)[:200]}"
 
@@ -385,11 +450,15 @@ def detect_scam_patterns(url: str, domain: str, website_data: dict,
         patterns.append("IP_TRACKER: URL pendek digunakan → bisa jadi pelacak IP (Grabify-like)")
         risk_boost += 25
 
-    # Check if final URL differs significantly from original
+    # Check if final URL differs significantly from original — root domain,
+    # bukan string persis. http->https dan bare-domain->www itu redirect
+    # KANONIK yang dipakai hampir semua situs (termasuk haritagrouptrading.com
+    # sendiri, situs scam yang lagi diperiksa!) — bukan sinyal risiko, dan
+    # membandingkan string persis salah menandainya sebagai "REDIRECT mencurigakan".
     final_url = website_data.get("final_url", "")
     if final_url:
         final_domain = urlparse(final_url).hostname or ""
-        if domain != final_domain:
+        if final_domain and root_domain(domain) != root_domain(final_domain):
             patterns.append(f"REDIRECT: Domain berubah dari {domain} ke {final_domain}")
             risk_boost += 10
             # Check if destination has minimal content (IP tracker pattern)
@@ -524,10 +593,29 @@ def call_ai_analysis(url: str, domain: str, website_data: dict,
                      content_data: dict, dns_data: dict, ssl_data: dict) -> dict:
     """Send all recon data to AI for comprehensive analysis."""
 
+    content_unverified = bool(website_data.get("fetch_error")) or bool(website_data.get("blocked_by_antibot"))
+
     # Build context for AI
     prompt_parts = [
         "You are a cybersecurity expert. Analyze this website for phishing, scam, and social engineering threats.",
-        "You have access to the ACTUAL website content, not just the URL.",
+    ]
+    if content_unverified:
+        # Jangan biarkan model diam-diam nganggep "nggak nemu apa-apa" di
+        # halaman CAPTCHA/timeout sebagai "situsnya aman" — itu justru
+        # kasus paling gampang salah (lihat cjdshipping.com: LOW risk cuma
+        # karena yang ke-fetch adalah halaman Cloudflare challenge).
+        reason = website_data.get("fetch_error") or "halaman anti-bot challenge (Cloudflare/CAPTCHA), bukan konten asli"
+        prompt_parts += [
+            f"⚠️ IMPORTANT: The real page content could NOT be retrieved ({reason}).",
+            "You do NOT have the actual website content below — only URL/domain/DNS/SSL metadata.",
+            "DO NOT conclude the site is safe/LOW risk just because 'no phishing signs were found in the content' —",
+            "there IS no content here to check. Absence of evidence is not evidence of absence.",
+            "Base your conclusion primarily on domain pattern, DNS, and SSL signals, and explicitly say in",
+            "'conclusion' that the real content could not be verified, so this is not a full guarantee either way.",
+        ]
+    else:
+        prompt_parts.append("You have access to the ACTUAL website content below, not just the URL.")
+    prompt_parts += [
         "",
         f"=== TARGET ===",
         f"URL: {url}",
@@ -701,6 +789,8 @@ def call_ai_analysis(url: str, domain: str, website_data: dict,
 # ─── Main recon endpoint ────────────────────────────────────────────────
 
 @app.route("/v1/recon", methods=["POST"])
+@require_api_key
+@limiter.limit("10 per minute")
 def recon():
     """Full website reconnaissance endpoint.
     
@@ -738,16 +828,39 @@ def recon():
     if local_patterns.get("detected"):
         ai_result.setdefault("ai_local_patterns", local_patterns["patterns"])
         ai_result.setdefault("ai_local_risk_boost", local_patterns.get("risk_boost", 0))
-        # Override risk if local detection is confident — and keep score consistent
-        # with the overridden label, otherwise UI shows e.g. risk=HIGH score=55 (looks MEDIUM).
+        # Override risk (dan kesimpulannya) HANYA kalau sinyal lokal cukup kuat
+        # (>30). Di bawah itu, ai_conclusion AI — yang baca konten asli dan
+        # biasanya jauh lebih detail & akurat — tidak boleh ditimpa kalimat
+        # generik cuma gara-gara satu pola lemah (mis. redirect ke domain
+        # lain doang, tanpa indikator lain). Threshold sama dengan override
+        # risk supaya konsisten: kalau sinyalnya belum cukup kuat untuk
+        # menimpa label risiko, jangan juga cukup kuat untuk menimpa kesimpulan.
         if local_patterns.get("risk_boost", 0) > 30:
             overridden_risk = local_patterns.get("risk", ai_result.get("ai_risk", "MEDIUM"))
             ai_result["ai_risk"] = overridden_risk
             min_score_for_risk = {"HIGH": 70, "MEDIUM": 40, "LOW": 0}.get(overridden_risk, 0)
             ai_result["ai_score"] = max(ai_result.get("ai_score", 0), min_score_for_risk)
-        # Add local conclusion
-        if local_patterns.get("conclusion"):
-            ai_result["ai_conclusion"] = local_patterns["conclusion"]
+            if local_patterns.get("conclusion"):
+                ai_result["ai_conclusion"] = local_patterns["conclusion"]
+
+    # Safety net: kalau konten asli tidak pernah berhasil dibaca (anti-bot
+    # challenge atau fetch gagal total), jangan biarkan hasilnya jatuh ke
+    # LOW/aman — itu artinya kita belum benar-benar memeriksa apa-apa, bukan
+    # bukti situsnya bersih. Prompt sudah minta AI jujur soal ini, ini lapis
+    # kedua kalau modelnya tetap kepeleset bilang "aman".
+    content_unverified = bool(website_data.get("fetch_error")) or bool(website_data.get("blocked_by_antibot"))
+    if content_unverified:
+        ai_result["ai_content_unverified"] = True
+        risk_order = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "CRITICAL": 3}
+        current_risk = ai_result.get("ai_risk", "LOW")
+        if risk_order.get(current_risk, 0) < risk_order["MEDIUM"]:
+            ai_result["ai_risk"] = "MEDIUM"
+            ai_result["ai_score"] = max(ai_result.get("ai_score", 0), 40)
+        caveat = ("⚠️ Konten halaman asli tidak berhasil diverifikasi (diblokir anti-bot atau gagal "
+                  "diakses) — kesimpulan ini TIDAK bisa dijadikan jaminan situs ini aman.")
+        existing = ai_result.get("ai_conclusion", "")
+        if caveat not in existing:
+            ai_result["ai_conclusion"] = (existing + " " + caveat).strip()
 
     # Build final result
     total_time_ms = int((time.time() - start_time) * 1000)
@@ -765,6 +878,7 @@ def recon():
             "redirects": website_data.get("redirects", []),
             "fetch_time_ms": website_data.get("fetch_time_ms"),
             "fetch_error": website_data.get("fetch_error"),
+            "blocked_by_antibot": website_data.get("blocked_by_antibot", False),
         },
         "content": content_data,
         "dns": dns_data,

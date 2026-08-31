@@ -32,7 +32,7 @@ class WebsiteReconAgent {
     // Cloud AI endpoint — set null to use local-only analysis.
     // Configure with: WebsiteReconAgent.AI_ENDPOINT = "https://your-api.com/recon"
     var aiEndpoint: String? = "http://103.197.189.70:8888/v1/chat/completions"
-    var aiApiKey: String? = ""
+    var aiApiKey: String? = "Cqg7J0lKRDojIW7FvrjjWQEqSG_VOrHNXGCk5tjjDak"
 
     data class ReconResult(
         val url: String,
@@ -480,13 +480,14 @@ class WebsiteReconAgent {
                     val aiScore = json.get("ai")?.asJsonObject?.get("ai_score")?.asInt ?: score
                     val aiReasons = json.get("ai")?.asJsonObject?.get("ai_reasons")?.asJsonArray?.map { it.asString }?.toList() ?: reasons
                     val aiSummary = json.get("ai")?.asJsonObject?.get("ai_summary")?.asString ?: ""
-                    val aiBrand = json.get("ai")?.asJsonObject?.get("ai_brand_impersonation")?.asString
+                    val aiBrand = json.get("ai")?.asJsonObject?.get("ai_brand_impersonation")
+                        ?.let { if (it.isJsonNull) null else it.asString }
                     val aiForms = json.get("ai")?.asJsonObject?.get("ai_suspicious_forms")?.asJsonArray?.map { it.asString }?.toList() ?: emptyList()
                     val aiPatterns = json.get("ai")?.asJsonObject?.get("ai_se_patterns")?.asJsonArray?.map { it.asString }?.toList() ?: emptyList()
 
                     // Website data
                     val website = json.get("website")?.asJsonObject
-                    val statusCode = website?.get("status_code")?.asInt
+                    val statusCode = website?.get("status_code")?.let { if (it.isJsonNull) null else it.asInt }
                     val title = website?.get("title")?.asString ?: ""
                     val fetchError = website?.get("fetch_error")?.let { if (it.isJsonNull) null else it.asString }
 
