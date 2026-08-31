@@ -68,11 +68,18 @@ class WebsiteReconAgent {
                 val findings = mutableListOf<Finding>()
 
                 if (resolusi.hopCount > 0) {
+                    val domainAsli = extractDomain(url)
+                    // http→https atau bare-domain→www itu redirect KANONIK, dipakai
+                    // hampir semua situs — bukan sinyal risiko. Yang berarti adalah
+                    // lompat ke domain lain sama sekali (pola shortener/redirector).
+                    val lintasDomain = rootDomain(domain) != rootDomain(domainAsli)
                     findings.add(Finding(
                         "Redirect Terdeteksi",
-                        "URL asli (${extractDomain(url)}) redirect ${resolusi.hopCount}x sebelum sampai ke tujuan akhir:\n$finalUrl" +
+                        "URL asli ($domainAsli) redirect ${resolusi.hopCount}x " +
+                            (if (lintasDomain) "ke DOMAIN LAIN sebelum sampai ke tujuan akhir:\n$finalUrl"
+                             else "di dalam domain yang sama, ke:\n$finalUrl") +
                             if (resolusi.hopCount >= MAX_REDIRECT_HOPS) "\n\n⚠️ Batas ${MAX_REDIRECT_HOPS}x redirect tercapai — mungkin masih ada lompatan lanjutan yang tidak diikuti." else "",
-                        RiskLevel.MEDIUM
+                        if (lintasDomain) RiskLevel.MEDIUM else RiskLevel.SAFE
                     ))
                 }
 
@@ -359,9 +366,13 @@ class WebsiteReconAgent {
                 val notAfter = cert.notAfter
                 val now = java.util.Date()
 
-                // Check cert age
+                // Check cert age. Let's Encrypt (gratis, paling umum) auto-renew
+                // tiap ~60 hari dari masa berlaku 90 hari — threshold 30 hari
+                // membuat sepertiga situs HTTPS legit kena tag ini kapan saja
+                // secara kebetulan. 14 hari jauh lebih spesifik ke pola
+                // "domain+cert dibikin dadakan buat kampanye phishing".
                 val ageDays = ((now.time - notBefore.time) / (1000 * 60 * 60 * 24)).toInt()
-                if (ageDays < 30) {
+                if (ageDays < 14) {
                     findings.add(Finding(
                         "Sertifikat SSL Baru",
                         "Sertifikat baru dibuat $ageDays hari lalu — phishing sering pakai cert baru.",
@@ -606,5 +617,16 @@ class WebsiteReconAgent {
     private fun extractDomain(url: String): String {
         return url.removePrefix("http://").removePrefix("https://").removePrefix("www.")
             .substringBefore('/').substringBefore('?').substringBefore('#')
+    }
+
+    /**
+     * Domain inti yang dipakai membandingkan "situs sama atau lompat ke lain
+     * sama sekali" untuk finding redirect. Naif (2 label terakhir) — tidak
+     * paham eTLD majemuk seperti .co.id/.co.uk, sama seperti heuristik lain
+     * di file ini. Cukup untuk kasus umum (google.com vs www.google.com).
+     */
+    private fun rootDomain(domain: String): String {
+        val parts = domain.removePrefix("www.").split('.')
+        return if (parts.size <= 2) parts.joinToString(".") else parts.takeLast(2).joinToString(".")
     }
 }
