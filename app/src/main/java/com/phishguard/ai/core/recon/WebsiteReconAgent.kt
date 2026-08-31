@@ -26,6 +26,9 @@ class WebsiteReconAgent {
     private val api = ApiClient()
     private val gson = Gson()
 
+    /** Batas lompatan redirect yang diikuti sebelum menyerah (lihat resolveRedirects). */
+    private val MAX_REDIRECT_HOPS = 5
+
     // Cloud AI endpoint — set null to use local-only analysis.
     // Configure with: WebsiteReconAgent.AI_ENDPOINT = "https://your-api.com/recon"
     var aiEndpoint: String? = "https://mathematics-feat-bristol-shaped.trycloudflare.com/v1/chat/completions"
@@ -53,16 +56,31 @@ class WebsiteReconAgent {
     fun analyze(url: String, callback: (ReconResult) -> Unit) {
         thread {
             try {
-                val domain = extractDomain(url)
-                Log.d(TAG, "Starting recon for: $url (domain: $domain)")
+                // Ikuti redirect DULU — tanpa ini, URL shortener/redirector
+                // (bit.ly, urlto.me, dst.) dinilai dari domain shortener-nya
+                // sendiri, bukan dari situs sebenarnya yang dituju. Itu celah
+                // paling gampang: shortener apa pun otomatis lolos analisis.
+                val resolusi = resolveRedirects(url)
+                val finalUrl = resolusi.finalUrl
+                val domain = resolusi.finalDomain
+                Log.d(TAG, "Starting recon for: $url -> final: $finalUrl (domain: $domain)")
 
                 val findings = mutableListOf<Finding>()
 
-                // 1. URL structure analysis (always available, no network)
-                findings.addAll(analyzeUrlStructure(url, domain))
+                if (resolusi.hopCount > 0) {
+                    findings.add(Finding(
+                        "Redirect Terdeteksi",
+                        "URL asli (${extractDomain(url)}) redirect ${resolusi.hopCount}x sebelum sampai ke tujuan akhir:\n$finalUrl" +
+                            if (resolusi.hopCount >= MAX_REDIRECT_HOPS) "\n\n⚠️ Batas ${MAX_REDIRECT_HOPS}x redirect tercapai — mungkin masih ada lompatan lanjutan yang tidak diikuti." else "",
+                        RiskLevel.MEDIUM
+                    ))
+                }
+
+                // 1. URL structure analysis — pada URL TUJUAN AKHIR, bukan shortener-nya
+                findings.addAll(analyzeUrlStructure(finalUrl, domain))
 
                 // 2. Social engineering pattern detection
-                val seIndicators = detectSocialEngineering(url)
+                val seIndicators = detectSocialEngineering(finalUrl)
 
                 // 3. Domain reputation via DNS lookup
                 findings.addAll(checkDns(domain))
@@ -72,7 +90,7 @@ class WebsiteReconAgent {
 
                 // 5. Cloud AI analysis (optional — if endpoint configured)
                 if (!aiEndpoint.isNullOrBlank()) {
-                    findings.addAll(callAiRecon(url, domain))
+                    findings.addAll(callAiRecon(finalUrl, domain))
                 }
 
                 // Compute overall risk
@@ -80,7 +98,7 @@ class WebsiteReconAgent {
                 val riskScore = computeRiskScore(findings, seIndicators)
 
                 val result = ReconResult(
-                    url = url,
+                    url = finalUrl,
                     domain = domain,
                     overallRisk = maxRisk,
                     confidence = riskScore,
@@ -105,6 +123,53 @@ class WebsiteReconAgent {
                 ))
             }
         }
+    }
+
+    // ── Redirect Resolution ─────────────────────────────────────────────
+
+    private data class RedirectResolution(
+        val finalUrl: String,
+        val finalDomain: String,
+        val hopCount: Int
+    )
+
+    /**
+     * Ikuti redirect HTTP (3xx + Location) sampai ke tujuan akhir, maksimal
+     * [MAX_REDIRECT_HOPS] lompatan. Ini menutup celah shortener/redirector
+     * apa pun — bukan cuma yang ada di [shortDomains] — karena yang dianalisis
+     * jadi domain sebenarnya, bukan domain perantara.
+     *
+     * ponytail: hanya redirect HTTP (Location header). Redirect via
+     * meta-refresh/JavaScript tidak terdeteksi — itu perlu render halaman
+     * penuh (WebView), di luar cakupan perbaikan cepat ini.
+     */
+    private fun resolveRedirects(url: String): RedirectResolution {
+        var current = url
+        var hops = 0
+        while (hops < MAX_REDIRECT_HOPS) {
+            val next = try {
+                val conn = (java.net.URL(current).openConnection() as java.net.HttpURLConnection).apply {
+                    instanceFollowRedirects = false
+                    connectTimeout = 6000
+                    readTimeout = 6000
+                    requestMethod = "GET"
+                    setRequestProperty("User-Agent", "Mozilla/5.0 (Android) PhishGuard-Recon")
+                }
+                val code = conn.responseCode
+                val location = conn.getHeaderField("Location")
+                conn.disconnect()
+                if (code in 300..399 && !location.isNullOrBlank()) {
+                    java.net.URL(java.net.URL(current), location).toString()
+                } else null
+            } catch (e: Exception) {
+                Log.d(TAG, "Redirect check berhenti di hop $hops untuk $current: ${e.message}")
+                null
+            }
+            if (next == null || next == current) break
+            current = next
+            hops++
+        }
+        return RedirectResolution(current, extractDomain(current), hops)
     }
 
     // ── URL Structure Analysis ────────────────────────────────────────
