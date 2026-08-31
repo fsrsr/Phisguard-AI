@@ -22,9 +22,10 @@ import requests
 from flask import Flask, jsonify, request
 
 # ─── Config ──────────────────────────────────────────────────────────────
-AI_ENDPOINT = "http://localhost:20128/v1/chat/completions"
-AI_API_KEY = "sk-phishguard-vps-key-2024"
-AI_MODEL = "ag/gemini-3.7-flash-high"  # model name for AI analysis
+# OpenRouter direct (9router API keys don't work for /v1/chat/completions)
+AI_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
+AI_API_KEY = "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"
+AI_MODEL = "google/gemini-3.7-flash"  # model name for AI analysis via OpenRouter
 REQUEST_TIMEOUT = 15  # seconds for fetching target website
 AI_TIMEOUT = 60       # seconds for AI response
 MAX_HTML_SIZE = 500_000  # 500KB max HTML to analyze
