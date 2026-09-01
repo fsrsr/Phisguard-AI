@@ -28,6 +28,46 @@ from flask_limiter.util import get_remote_address
 AI_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
 AI_API_KEY = "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"
 AI_MODEL = "google/gemini-3.7-flash"  # model name for AI analysis via OpenRouter
+
+# Penyedia AI aktif: "google" (AI Studio langsung) atau "openrouter".
+# Cukup ubah baris ini untuk berpindah — sisa kode tidak perlu disentuh,
+# supaya gampang dibalik kalau kualitasnya ternyata turun.
+AI_PROVIDER = "google"
+
+# Google AI Studio: free tier dengan kuota harian yang benar-benar me-reset,
+# beda dari OpenRouter yang memotong saldo dan tidak pernah pulih. Modelnya
+# sama persis dengan yang selama ini terbukti bagus.
+GOOGLE_API_KEY = "AQ.Ab8RN6J04rXNM1IdeDqcQB3ZIgtXflbtardSUGLYvnvWDMUCUA"
+# Diukur pada haritagrouptrading.com dengan prompt identik:
+#   gemini-3.7-flash      57,7 dtk  CRITICAL/95  brand dikenali
+#   gemini-3.5-flash       4,0 dtk  HIGH/85      brand dikenali   <- dipakai
+#   gemini-2.5-flash      11,0 dtk  HIGH/85      brand dikenali
+#   gemini-3.1-flash-lite  3,0 dtk  HIGH/85      brand dikenali
+# 3.7 memberi vonis paling tegas, tapi 57 detik membuatnya gagal timeout di
+# 2 dari 4 pengujian - percuma seakurat apa pun kalau jawabannya tak pernah
+# sampai. 3.5-flash menangkap impersonasi merek dengan benar dalam 4 detik.
+# Varian "lite" sedikit lebih cepat tapi lebih lemah untuk penalaran bernuansa.
+GOOGLE_MODEL = "gemini-3.5-flash"
+GOOGLE_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+
+# gemini-3.7-flash adalah model "thinking": token untuk proses berpikirnya
+# IKUT memotong maxOutputTokens. Pada uji coba, prompt sepele saja menghabiskan
+# 92 token untuk berpikir dan hanya menyisakan 4 token untuk jawaban — jadi
+# jatah 2048 seperti sebelumnya berisiko memotong JSON di tengah jalan.
+AI_MAX_TOKENS = 4096
+AI_RETRY = 2        # 503 "high demand" cukup sering terjadi di free tier
+AI_RETRY_DELAY = 3  # detik, dikalikan nomor percobaan
+
+# Batasi proses berpikir model. Diukur pada haritagrouptrading.com dengan
+# prompt yang sama persis: tanpa batas 58,5 detik, dengan budget 0 hanya
+# 14,2 detik — dan hasilnya identik (HIGH/85, brand "Harita Group").
+# Masuk akal, karena prompt kita sudah menyodorkan bukti terstruktur (DNS,
+# SSL, isi halaman, form), jadi model tinggal menilai, bukan menalar dari nol.
+# Tanpa ini, 2 dari 3 recon gagal kena timeout 60 detik.
+GOOGLE_THINKING_BUDGET = 0
+
+AI_SYSTEM_PROMPT = ("You are a cybersecurity expert analyzing websites for phishing "
+                    "and social engineering. Reply in Indonesian.")
 REQUEST_TIMEOUT = 20  # seconds for fetching target website
 AI_TIMEOUT = 60       # seconds for AI response
 MAX_HTML_SIZE = 500_000  # 500KB max HTML to analyze
@@ -687,6 +727,84 @@ def detect_scam_patterns(url: str, domain: str, website_data: dict,
 
 # ─── AI analysis ─────────────────────────────────────────────────────────
 
+def _kirim_ke_ai(prompt: str):
+    """Kirim prompt ke penyedia AI yang sedang aktif.
+
+    Mengembalikan (teks_jawaban, waktu_ms, nama_model, pesan_error).
+    Dipisah dari call_ai_analysis supaya penyedia bisa ditukar tanpa
+    menyentuh penyusunan prompt maupun pembacaan hasilnya.
+    """
+    start = time.time()
+    percobaan = 0
+    while True:
+        percobaan += 1
+        if AI_PROVIDER == "google":
+            url = GOOGLE_ENDPOINT.format(model=GOOGLE_MODEL)
+            body = json.dumps({
+                "system_instruction": {"parts": [{"text": AI_SYSTEM_PROMPT}]},
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    # Dijamin JSON murni oleh API, jadi tidak perlu lagi
+                    # menebak-nebak membersihkan pagar markdown.
+                    "responseMimeType": "application/json",
+                    "maxOutputTokens": AI_MAX_TOKENS,
+                    "temperature": 0.3,
+                    "thinkingConfig": {"thinkingBudget": GOOGLE_THINKING_BUDGET},
+                },
+            })
+            headers = {"Content-Type": "application/json", "X-goog-api-key": GOOGLE_API_KEY}
+            resp = requests.post(url, data=body, headers=headers, timeout=AI_TIMEOUT)
+        else:
+            body = json.dumps({
+                "model": AI_MODEL,
+                "messages": [
+                    {"role": "system", "content": AI_SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt},
+                ],
+                "max_tokens": AI_MAX_TOKENS,
+                "temperature": 0.3,
+                "stream": False,
+            })
+            headers = {"Content-Type": "application/json",
+                       "Authorization": "Bearer %s" % AI_API_KEY}
+            resp = requests.post(AI_ENDPOINT, data=body, headers=headers, timeout=AI_TIMEOUT)
+
+        ms = int((time.time() - start) * 1000)
+        log.info("AI response: provider=%s status=%s time=%dms percobaan=%d",
+                 AI_PROVIDER, resp.status_code, ms, percobaan)
+
+        # 503 = model sedang penuh, 429 = kena batas laju. Keduanya sementara
+        # dan sering muncul di free tier, jadi diulang sebentar sebelum menyerah.
+        if resp.status_code in (429, 503) and percobaan <= AI_RETRY:
+            time.sleep(AI_RETRY_DELAY * percobaan)
+            continue
+
+        if resp.status_code != 200:
+            return "", ms, "", "AI API error %s: %s" % (resp.status_code, resp.text[:200])
+
+        data = json.loads(resp.text)
+
+        if AI_PROVIDER == "google":
+            try:
+                bagian = data["candidates"][0]["content"]["parts"]
+                teks = "".join(b.get("text", "") for b in bagian)
+            except (KeyError, IndexError):
+                kandidat = (data.get("candidates") or [{}])[0]
+                pakai = data.get("usageMetadata", {})
+                return "", ms, GOOGLE_MODEL, (
+                    "Jawaban kosong (finishReason=%s, thinking=%s token). Kemungkinan "
+                    "maxOutputTokens habis dipakai proses berpikir." % (
+                        kandidat.get("finishReason", "?"), pakai.get("thoughtsTokenCount")))
+            return teks, ms, data.get("modelVersion", GOOGLE_MODEL), ""
+
+        pilihan = data.get("choices", [{}])[0]
+        pesan = pilihan.get("message", {})
+        teks = (pesan.get("content")
+                or pilihan.get("delta", {}).get("content", "")
+                or pesan.get("reasoning", ""))
+        return teks, ms, data.get("model", AI_MODEL), ""
+
+
 def call_ai_analysis(url: str, domain: str, website_data: dict,
                      content_data: dict, dns_data: dict, ssl_data: dict) -> dict:
     """Send all recon data to AI for comprehensive analysis."""
@@ -815,89 +933,54 @@ def call_ai_analysis(url: str, domain: str, website_data: dict,
     prompt = "\n".join(prompt_parts)
 
     try:
-        body = json.dumps({
-            "model": AI_MODEL,
-            "messages": [
-                {"role": "system", "content": "You are a cybersecurity expert analyzing websites for phishing and social engineering. Reply in Indonesian."},
-                {"role": "user", "content": prompt}
-            ],
-            "max_tokens": 2048,
-            "temperature": 0.3,
-            "stream": False,
-        })
+        content, elapsed_ms, model_dipakai, err = _kirim_ke_ai(prompt)
+        if err:
+            return {"ai_error": err, "ai_time_ms": elapsed_ms}
+        if not content:
+            return {"ai_error": "Empty AI response", "ai_time_ms": elapsed_ms}
 
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {AI_API_KEY}",
+        # Mode Google sudah menjamin JSON murni lewat responseMimeType;
+        # OpenRouter kadang masih membungkus jawaban dalam pagar markdown,
+        # jadi pembersihannya tetap dipertahankan.
+        cleaned = content.strip()
+        if cleaned.startswith("```json"):
+            cleaned = cleaned[7:]
+        elif cleaned.startswith("```"):
+            cleaned = cleaned[3:]
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-3]
+        cleaned = cleaned.strip()
+
+        try:
+            ai_result = json.loads(cleaned)
+        except json.JSONDecodeError:
+            # Bukan JSON — pakai apa adanya sebagai ringkasan.
+            return {
+                "ai_risk": "MEDIUM",
+                "ai_score": 50,
+                "ai_reasons": [],
+                "ai_summary": content[:2000],
+                "ai_model": model_dipakai,
+                "ai_time_ms": elapsed_ms,
+            }
+
+        return {
+            "ai_risk": ai_result.get("risk", "MEDIUM"),
+            "ai_score": ai_result.get("score", 50),
+            "ai_reasons": ai_result.get("reasons", []),
+            "ai_brand_impersonation": ai_result.get("brand_impersonation"),
+            "ai_suspicious_forms": ai_result.get("suspicious_forms", []),
+            "ai_se_patterns": ai_result.get("se_patterns", []),
+            "ai_summary": ai_result.get("ai_summary", cleaned[:1000]),
+            "ai_conclusion": ai_result.get("conclusion", ""),
+            "ai_model": model_dipakai,
+            "ai_time_ms": elapsed_ms,
         }
 
-        start = time.time()
-        resp = requests.post(AI_ENDPOINT, data=body, headers=headers, timeout=AI_TIMEOUT)
-        elapsed_ms = int((time.time() - start) * 1000)
-
-        log.info(f"AI response: status={resp.status_code}, time={elapsed_ms}ms")
-
-        if resp.status_code == 200:
-            raw = resp.text
-            # Strip SSE suffix
-            raw = re.sub(r"\ndata: \[DONE\]$", "", raw).strip()
-
-            data = json.loads(raw)
-            content = ""
-            choice = data.get("choices", [{}])[0]
-            msg = choice.get("message", {})
-            content = msg.get("content") or choice.get("delta", {}).get("content", "")
-
-            # Also check reasoning field for thinking models
-            if not content:
-                content = msg.get("reasoning", "")
-
-            if content:
-                # Strip markdown code blocks if present
-                cleaned = content.strip()
-                if cleaned.startswith("```json"):
-                    cleaned = cleaned[7:]
-                elif cleaned.startswith("```"):
-                    cleaned = cleaned[3:]
-                if cleaned.endswith("```"):
-                    cleaned = cleaned[:-3]
-                cleaned = cleaned.strip()
-
-                # Try parse as JSON
-                try:
-                    # Lenient parse
-                    ai_result = json.loads(cleaned)
-                    return {
-                        "ai_risk": ai_result.get("risk", "MEDIUM"),
-                        "ai_score": ai_result.get("score", 50),
-                        "ai_reasons": ai_result.get("reasons", []),
-                        "ai_brand_impersonation": ai_result.get("brand_impersonation"),
-                        "ai_suspicious_forms": ai_result.get("suspicious_forms", []),
-                        "ai_se_patterns": ai_result.get("se_patterns", []),
-                        "ai_summary": ai_result.get("ai_summary", cleaned[:1000]),
-                        "ai_conclusion": ai_result.get("conclusion", ""),
-                        "ai_model": data.get("model", AI_MODEL),
-                        "ai_time_ms": elapsed_ms,
-                    }
-                except json.JSONDecodeError:
-                    # Non-JSON response — use as summary
-                    return {
-                        "ai_risk": "MEDIUM",
-                        "ai_score": 50,
-                        "ai_reasons": [],
-                        "ai_summary": content[:2000],
-                        "ai_model": data.get("model", AI_MODEL),
-                        "ai_time_ms": elapsed_ms,
-                    }
-            else:
-                return {"ai_error": "Empty AI response", "ai_time_ms": elapsed_ms}
-        else:
-            return {"ai_error": f"AI API error {resp.status_code}: {resp.text[:200]}"}
-
     except requests.exceptions.Timeout:
-        return {"ai_error": f"AI timeout after {AI_TIMEOUT}s"}
+        return {"ai_error": "AI timeout after %ss" % AI_TIMEOUT}
     except Exception as e:
-        return {"ai_error": f"AI error: {str(e)[:200]}"}
+        return {"ai_error": "AI error: %s" % str(e)[:200]}
 
 
 # ─── Main recon endpoint ────────────────────────────────────────────────
