@@ -976,6 +976,38 @@ def recon():
         if caveat not in existing:
             ai_result["ai_conclusion"] = (existing + " " + caveat).strip()
 
+    # Jaring pengaman: panggilan AI gagal total (kuota habis, server AI mati,
+    # timeout). Tanpa ini overall_risk keluar "UNKNOWN", dan client memetakan
+    # UNKNOWN -> RiskLevel.LOW, jadi layar menampilkan hijau "AMAN" untuk situs
+    # yang sebenarnya TIDAK PERNAH diperiksa. Menenangkan padahal buta adalah
+    # kegagalan paling berbahaya untuk aplikasi keamanan - lebih baik jujur
+    # bilang "belum bisa dipastikan" daripada memberi rasa aman palsu.
+    if ai_result.get("ai_error"):
+        ai_result["ai_unavailable"] = True
+        urutan = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "CRITICAL": 3}
+        # Kalau heuristik lokal sudah menemukan sesuatu, pakai vonisnya.
+        # Kalau tidak, jangan jatuh ke LOW - tahan di MEDIUM sebagai
+        # "belum dapat dipastikan", bukan sebagai tuduhan.
+        dasar = local_patterns.get("risk", "MEDIUM") if local_patterns.get("detected") else "MEDIUM"
+        sekarang = str(ai_result.get("ai_risk", "")).upper()
+        if urutan.get(sekarang, -1) < urutan.get(dasar, 1):
+            ai_result["ai_risk"] = dasar
+            ai_result["ai_score"] = max(ai_result.get("ai_score", 0),
+                                        {"CRITICAL": 90, "HIGH": 70, "MEDIUM": 40}.get(dasar, 40))
+        if not ai_result.get("ai_reasons"):
+            ai_result["ai_reasons"] = local_patterns.get("patterns") or [
+                "Analisis AI tidak dapat dijalankan, sehingga isi halaman belum dinilai."
+            ]
+        catatan = ("Pemeriksaan AI sedang tidak tersedia, jadi isi situs ini BELUM diperiksa "
+                   "secara mendalam. Hasil di atas hanya berasal dari pengecekan dasar (domain, "
+                   "DNS, SSL, dan pola yang sudah dikenal) dan TIDAK bisa dijadikan jaminan bahwa "
+                   "situs ini aman. Coba periksa ulang nanti.")
+        sudah = ai_result.get("ai_conclusion", "")
+        if catatan not in sudah:
+            ai_result["ai_conclusion"] = (sudah + " " + catatan).strip() if sudah else catatan
+        log.warning("AI tidak tersedia (%s) - hasil diturunkan ke pengecekan lokal",
+                    str(ai_result.get("ai_error"))[:80])
+
     # Build final result
     total_time_ms = int((time.time() - start_time) * 1000)
 
