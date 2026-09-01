@@ -52,3 +52,5 @@ keystore.properties
 
 # Keluaran APK siap edar
 dist/
+server/__pycache__/
+*.pyc

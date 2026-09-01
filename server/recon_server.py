@@ -51,6 +51,56 @@ BOT_CHALLENGE_MARKERS = [
 ]
 
 
+# --- Intel dari laporan aduan Patroli Siber (1 Jan - 23 Agu 2026) --------
+# Sumber: rekap 2.792 aduan + 33 contoh kasus yang sudah difilter.
+# Yang diambil ke sini HANYA pola modus dan indikator sisi PELAKU.
+# Tidak ada satu pun data pelapor/korban yang masuk ke file ini.
+#
+# Distribusi aduan - dipakai untuk memutuskan pola mana yang layak
+# diberi bobot besar:
+#   Penipuan Online 1660 (59%) - Pencurian Data 293 - Akses Ilegal 176
+#   Ancaman Pencemaran 114 - Pencemaran Nama Baik 90 - Judi Online 36
+#   Cracking 34 - sisanya di bawah 30
+# Penipuan online mendominasi hampir 6 dari 10 aduan, sementara modus
+# yang berulang di dalamnya - impersonasi instansi pajak/polri, pinjol
+# ilegal, dan panen OTP - sama sekali belum tertangani heuristik lama,
+# yang selama ini cuma mengenal judol/investasi/brand e-commerce.
+
+# Impersonasi instansi negara (aduan: Coretax/DJP palsu, penelepon
+# mengaku Bareskrim). Sinyal ini kuat karena instansi asli SELALU
+# memakai domain .go.id - jadi hanya berbunyi kalau domainnya bukan .go.id.
+GOV_IMPERSONATION_KEYWORDS = [
+    "coretax", "djp online", "ditjen pajak", "direktorat jenderal pajak",
+    "wajib pajak", "npwp", "e-filing", "efiling", "tagihan pajak",
+    "denda pajak", "bareskrim", "polri", "kepolisian republik", "surat tilang",
+    "e-tilang", "panggilan kepolisian", "kejaksaan", "bea cukai",
+]
+
+# Pinjol ilegal (aduan: aplikasi "Pinjaman Pasti", teror debt collector).
+PINJOL_KEYWORDS = [
+    "pinjaman online", "pinjol", "pinjaman cepat", "cair cepat",
+    "tanpa jaminan", "tanpa agunan", "dana cepat", "dana talangan",
+    "limit kredit", "tenor", "debt collector", "penagihan",
+    "tanpa bi checking", "langsung cair",
+]
+
+# Panen OTP (aduan: OTP Shopee dibanjiri, lalu dihubungi via WA mengaku
+# pihak resmi). Halaman resmi memang meminta OTP, jadi ini hanya
+# berbunyi bila domainnya BUKAN domain resmi.
+OTP_HARVEST_KEYWORDS = [
+    "kode otp", "kode verifikasi", "masukkan kode", "kode sms",
+    "verifikasi akun anda", "jangan bagikan kode", "one time password",
+]
+
+# Indikator konkret yang disebut di aduan (sisi pelaku, bukan korban).
+KNOWN_BAD_INDICATORS = [
+    "djp-online.zya.me",         # DJP palsu - yang resmi: pajak.go.id
+    "tgpanda.com",               # pengirim phishing berkedok perpajakan
+    "punten.php",                # webshell pada aduan backdoor WordPress
+    "pathfinder-utm-collector",  # plugin WordPress berisi backdoor
+]
+
+
 def root_domain(hostname: str) -> str:
     """2 label terakhir — naif (tidak paham eTLD majemuk kayak .co.id), cukup
     untuk bedain 'situs sama' (bare->www, http->https) vs 'lompat domain lain'."""
@@ -536,6 +586,54 @@ def detect_scam_patterns(url: str, domain: str, website_data: dict,
         risk = "HIGH"
         conclusion = f"Ini website investasi/MLM yang mencurigakan. Hati-hati dengan janji keuntungan besar."
 
+    # 5b. Impersonasi instansi negara (dari aduan Patroli Siber).
+    # Instansi asli selalu di .go.id, jadi kombinasi "ngaku instansi +
+    # domain bukan .go.id" adalah sinyal kuat dengan false positive rendah.
+    gov_hits = [kw for kw in GOV_IMPERSONATION_KEYWORDS
+                if kw in visible_text or kw in title]
+    if gov_hits and not domain.endswith(".go.id"):
+        patterns.append(
+            "GOV_IMPERSONATION: Mengatasnamakan instansi negara (%s) tapi domain "
+            "'%s' bukan .go.id" % (", ".join(gov_hits[:3]), domain))
+        risk_boost += 40
+        risk = "HIGH"
+        conclusion = ("Ini situs yang mengatasnamakan instansi resmi negara padahal "
+                      "domainnya bukan .go.id. Situs pemerintah asli SELALU memakai "
+                      ".go.id. JANGAN masukkan NIK, NPWP, atau data pribadi apa pun.")
+
+    # 5c. Pinjol ilegal - kata kunci pinjaman + halaman meminta data pribadi.
+    pinjol_hits = [kw for kw in PINJOL_KEYWORDS if kw in visible_text]
+    if len(pinjol_hits) >= 2 and forms:
+        patterns.append("PINJOL: %d kata kunci pinjaman online + form pengisian data (%s)"
+                        % (len(pinjol_hits), ", ".join(pinjol_hits[:3])))
+        risk_boost += 30
+        risk = "HIGH"
+        conclusion = ("Ini situs pinjaman online yang meminta data pribadi. Banyak aduan "
+                      "pinjol ilegal berujung teror penagihan dan penyalahgunaan data. "
+                      "Pastikan penyelenggaranya terdaftar di OJK sebelum mengisi apa pun.")
+
+    # 5d. Panen OTP - minta OTP di domain yang bukan domain resmi.
+    otp_hits = [kw for kw in OTP_HARVEST_KEYWORDS if kw in visible_text]
+    if otp_hits and not any(d in domain for d in LEGIT_DOMAINS):
+        patterns.append("OTP_HARVEST: Meminta kode OTP/verifikasi di domain tidak resmi (%s)"
+                        % ", ".join(otp_hits[:3]))
+        risk_boost += 35
+        risk = "HIGH"
+        conclusion = ("Situs ini meminta kode OTP padahal bukan domain resmi. Kode OTP "
+                      "TIDAK PERNAH diminta lewat situs atau chat pihak ketiga. "
+                      "JANGAN berikan kode apa pun.")
+
+    # 5e. Indikator yang sudah pernah dilaporkan namanya di aduan.
+    haystack = "%s %s" % (url.lower(), " ".join(content_data.get("external_scripts", [])).lower())
+    bad_hits = [ind for ind in KNOWN_BAD_INDICATORS if ind in haystack or ind in domain]
+    if bad_hits:
+        patterns.append("KNOWN_BAD: Cocok dengan indikator yang pernah dilaporkan (%s)"
+                        % ", ".join(bad_hits))
+        risk_boost += 50
+        risk = "HIGH"
+        conclusion = ("Situs/komponen ini cocok dengan indikator yang sudah pernah "
+                      "dilaporkan sebagai penipuan. JANGAN lanjutkan.")
+
     # 6. Credential harvesting detection
     if has_login_form and content_data.get("password_forms", 0) > 0:
         # Check for suspicious patterns
@@ -693,6 +791,22 @@ def call_ai_analysis(url: str, domain: str, website_data: dict,
         "    - Investment scam: promises high returns, crypto, trading, 'business opportunity', 'reseller'",
         "    - Gambling/Judol: 'slot', 'casino', 'betting', 'togel', 'poker' on unofficial domain",
         "    - Package/delivery scam: 'verifikasi', 'tracking', 'kirim ulang' with fake logistics brand",
+        "    - Government impersonation: fake tax portal (Coretax/DJP/NPWP/e-filing) or police "
+        "(Bareskrim/e-tilang) on a NON .go.id domain. Real Indonesian government sites are ALWAYS .go.id",
+        "    - Illegal lending (pinjol): fast-cash promises with no collateral, asking for KTP/selfie/"
+        "contact permissions. Reported repeatedly for debt-collector harassment and data misuse",
+        "    - OTP harvesting: page asks for an OTP/verification code while NOT being the brand real "
+        "domain, often paired with WhatsApp contact claiming to be official support",
+        "    - Fake online shop: goods offered via social media (Instagram/TikTok) or a Google Maps "
+        "listing, buyer told to transfer first, seller disappears after payment",
+        "    - Game account trading scam: buying/selling Free Fire, Mobile Legends, eFootball, Roblox "
+        "accounts, then the account or the payment is taken",
+        "    - Romance/advance-fee scam: relationship built over dating apps or social media, then "
+        "requests for money, gifts, or fake customs/shipping fees",
+        "",
+        "PRIORITY NOTE: Based on 2.792 real Indonesian cybercrime complaints (Jan-Aug 2026), "
+        "Penipuan Online accounts for ~59% of all reports - transactional fraud is far more common "
+        "than exotic attacks. Weight your assessment accordingly.",
         "",
         "Reply in Indonesian. Return JSON:",
         '{"risk":"LOW|MEDIUM|HIGH|CRITICAL","score":0-100,"reasons":["..."],"brand_impersonation":"...or null","suspicious_forms":["..."],"se_patterns":["..."],"conclusion":"Kesimpulan singkat dalam bahasa Indonesia sederhana untuk orang awam: apakah ini phishing/scam/judol/penipuan/bukan, dan kenapa. Contoh: Ini website penipuan (scam) yang menirukan BCA untuk mencuri data login Anda. JANGAN masukkan data apapun.","ai_summary":"detailed analysis in Indonesian"}'
