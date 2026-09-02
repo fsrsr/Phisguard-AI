@@ -261,11 +261,37 @@ class TFLiteMessageProvider : AIModelProvider {
             }
         }
 
+        // Tautan yang benar-benar ada di pesan. urlPattern hanya mengenal
+        // daftar TLD tetap yang tidak memuat .ly/.la/.gl, jadi justru
+        // pemendek — bentuk tautan yang paling sering dipakai spam — luput
+        // sepenuhnya. Akibatnya "bit.ly/xxx" dihitung sebagai pesan tanpa
+        // tautan, dan bonus maupun syarat di bawah tidak pernah berlaku.
+        val tautan = extractedUrls.ifEmpty { listOfNotNull(TextNormalizer.findLink(message)) }
+        val adaTautan = tautan.isNotEmpty()
+
         // Tulisan yang sengaja dikaburkan itu sinyal tersendiri: pesan
         // wajar nyaris tak pernah memakai huruf berspasi, leetspeak, dan
         // tanda baca penyisip sekaligus.
         if (kabur >= 2 && (score > 0f || judol.score >= 4)) {
             score = maxOf(score, 0.60f) + 0.10f
+        }
+
+        // Pesan yang SETIAP katanya dikaburkan dan memuat tautan.
+        //
+        // Semua jalur di atas butuh satu kata kunci yang terbaca lebih dulu.
+        // Spam seperti "c4r1 d1 g00gl3 r3sm1 mimpi 88 / m*h jng lagl gha c-
+        // 0r lh0 / bit.ly/xxx" sengaja tidak menyisakan satu pun, sehingga
+        // skornya nol dan pesan dinyatakan aman. Padahal pengaburan
+        // semasif itu tidak punya alasan lain selain menghindari penyaring,
+        // dan tautannya adalah tujuan seluruh pesan. Syarat tautan menahan
+        // false positive dari obrolan leetspeak yang memang cuma gaya
+        // menulis.
+        if (adaTautan && TextNormalizer.heavilyObfuscated(message)) {
+            score = maxOf(score, 0.88f)
+            if (category.isEmpty()) {
+                category = "PESAN_DIKABURKAN"
+                pattern = "teks sengaja dikaburkan"
+            }
         }
 
         // Pola lemah hanya MENGUATKAN pola kuat, tidak pernah memicu sendiri.
@@ -274,7 +300,7 @@ class TFLiteMessageProvider : AIModelProvider {
         if (score > 0f) {
             if (weakCount > 0) score += 0.05f * minOf(weakCount, 3)
             if (distinctCategories >= 2) score += 0.10f
-            if (extractedUrls.isNotEmpty()) score += 0.10f
+            if (adaTautan) score += 0.10f
             score = minOf(score, 0.99f)
         }
 
@@ -282,7 +308,7 @@ class TFLiteMessageProvider : AIModelProvider {
         // yang lebih umum butuh dukungan (kategori kedua atau sebuah URL).
         val isThreat = when {
             score >= 0.85f -> true
-            score >= THREAT_THRESHOLD && (distinctCategories >= 2 || extractedUrls.isNotEmpty()) -> true
+            score >= THREAT_THRESHOLD && (distinctCategories >= 2 || adaTautan) -> true
             else -> false
         }
 
@@ -290,7 +316,7 @@ class TFLiteMessageProvider : AIModelProvider {
             Log.d(TAG, "⚠️ PENIPUAN TERDETEKSI! Skor: $score — $category")
             AnalysisResult.threat(
                 confidence = score,
-                reason = buildReason(category, pattern, extractedUrls),
+                reason = buildReason(category, pattern, tautan),
                 category = ThreatCategory.SCAM_MESSAGE
             )
         } else {
@@ -343,6 +369,7 @@ class TFLiteMessageProvider : AIModelProvider {
             "PINJOL_ILEGAL"  -> "🚨 Tawaran pinjol ilegal (tanpa izin OJK) ('$pattern').$urlInfo"
             "LOWONGAN_PALSU" -> "⚠️ Lowongan kerja palsu / task online berbayar ('$pattern').$urlInfo"
             "URL_PHISHING"   -> "🚨 URL phishing terdeteksi: $urlInfo"
+            "PESAN_DIKABURKAN" -> "🚨 Tulisan pesan ini sengaja dikaburkan agar lolos penyaring, dan mengarah ke sebuah tautan.$urlInfo"
             else -> "⚠️ Pesan terindikasi penipuan. Pola: '$pattern'.$urlInfo"
         }
     }

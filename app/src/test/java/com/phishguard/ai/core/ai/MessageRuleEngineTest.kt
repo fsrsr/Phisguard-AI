@@ -79,4 +79,24 @@ class MessageRuleEngineTest {
     fun `URL meniru bank di dalam pesan tertangkap`() {
         assertTrue(analisis("Cek saldo di bca-verifikasi.vercel.app sekarang").isThreat)
     }
+
+    @Test
+    fun `spam yang seluruh katanya dikaburkan tertangkap`() {
+        // Dilaporkan lolos: setelah normalisasi tak tersisa satu pun kata
+        // kunci ("mimpi 88" jadi "mimpi b", "gacor" tersebar jadi "gha c-
+        // 0r"), dan "bit.ly/..." tidak dikenali urlPattern sebagai tautan.
+        // Skornya nol, pesan dinyatakan aman.
+        val pesan = "c4r1 d1 g00gl3 r3sm1 mimpi 88 " +
+                "m*h jng lagl gha c- 0r lh0 " +
+                "ada j'g k0m lsl har!an " +
+                "bit.ly/mp8-89f6n-29"
+        assertTrue(analisis(pesan).isThreat)
+    }
+
+    @Test
+    fun `gaya menulis leetspeak tanpa tautan tetap aman`() {
+        // Pengaburan padat saja tidak memvonis — harus ada tautan, karena
+        // tautan itulah tujuan seluruh pesan spam.
+        assertFalse(analisis("n1c3 sh0t br0 g4m3 nya seru b4ng tadi m4l4m").isThreat)
+    }
 }

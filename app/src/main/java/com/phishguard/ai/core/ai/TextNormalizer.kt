@@ -82,4 +82,54 @@ object TextNormalizer {
         if (Regex("[\\p{L}]['`´*_^|][\\p{L}0-9]").containsMatchIn(raw)) skor++
         return skor
     }
+
+    /**
+     * Tautan apa pun di dalam pesan, termasuk pemendek tanpa skema
+     * ("bit.ly/xxx"). Penyaring URL di TFLiteMessageProvider memakai daftar
+     * TLD tetap yang tidak memuat .ly/.la/.gl, sehingga justru pemendek —
+     * yang paling sering dipakai spam — tidak pernah terlihat.
+     */
+    private val TAUTAN = Regex(
+        "https?://\\S+|[\\w-]+\\.[a-z]{2,}(?:\\.[a-z]{2,})?/\\S+",
+        RegexOption.IGNORE_CASE
+    )
+
+    /** @return tautan pertama di teks, atau null. */
+    fun findLink(raw: String): String? = TAUTAN.find(raw)?.value
+
+    /**
+     * Angka atau simbol terjepit di antara dua huruf: "c4r1", "g00gl3",
+     * "m*h", "har!an".
+     *
+     * Apostrof sengaja TIDAK ikut dihitung. "Jum'at", "ba'da", "Ma'ruf",
+     * "Insya'Allah" lazim dalam bahasa Indonesia, dan satu pesan undangan
+     * pengajian saja sudah memuat empat di antaranya — cukup untuk
+     * melewati ambang di bawah. Tanda hubung juga tidak: reduplikasi
+     * ("anak-anak") ada di mana-mana.
+     */
+    private val TERJEPIT = Regex("[\\p{L}][0-9@\\$]+[\\p{L}]|[\\p{L}][*_^|!~][\\p{L}]")
+
+    /**
+     * Pesan yang HAMPIR SELURUH katanya dikaburkan.
+     *
+     * obfuscationScore() hanya mencatat ada/tidaknya tiap teknik, jadi satu
+     * kata aneh bernilai sama dengan pesan yang setiap katanya dirusak.
+     * Padahal kepadatannya-lah yang membedakan spam dari pesan wajar: tidak
+     * ada orang menulis "m*h jng lagl gha c- 0r lh0". Spam seperti itu tidak
+     * menyisakan satu pun kata kunci yang bisa dibaca, sehingga semua jalur
+     * deteksi berbasis kata pasti meleset — pengaburannya sendiri yang jadi
+     * satu-satunya bukti.
+     *
+     * Ambang (>=4 kata terjepit, >=30% kata, minimal 6 kata) dikalibrasi
+     * agar pesan sah berisi kode kelas, nomor resi, serial, atau daftar
+     * harga tetap lolos. Lihat TextNormalizerTest.
+     */
+    fun heavilyObfuscated(raw: String): Boolean {
+        val kata = raw.split(Regex("\\s+")).filter {
+            it.length >= 2 && it.any(Char::isLetter) && !TAUTAN.containsMatchIn(it)
+        }
+        if (kata.size < 6) return false
+        val terjepit = kata.count { TERJEPIT.containsMatchIn(it) }
+        return terjepit >= 4 && terjepit.toFloat() / kata.size >= 0.30f
+    }
 }
