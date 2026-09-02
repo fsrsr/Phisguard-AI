@@ -44,4 +44,5 @@
 
     <!-- Overlay -->
     <color name="scrim">#80000000</color>
+    <color name="ic_launcher_background">#FFFFFF</color>
 </resources>
