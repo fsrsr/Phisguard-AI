@@ -228,6 +228,22 @@ class TFLiteMessageProvider : AIModelProvider {
             )
         }
 
+        // ── Promo afiliasi judol tanpa kata "slot/gacor" ────────────────
+        // Genre yang berjualan lewat janji pembayaran ("menang, WD
+        // berapapun pasti cair, situs terverifikasi") dan sengaja
+        // menghindari istilah judol klasik, sehingga scan wordlist di atas
+        // meleset. Frasa jangkar di JudolWordlist praktis tak punya
+        // pemakaian sah, jadi satu saja sudah cukup memvonis.
+        JudolWordlist.promoScamAnchor(normal)?.let { anchor ->
+            Log.d(TAG, "Promo judi terdeteksi: \"$anchor\" (kabur=$kabur)")
+            return AnalysisResult.threat(
+                confidence = if (kabur >= 2) 0.95f else 0.90f,
+                reason = "Pesan berisi promosi judi online (janji \"$anchor\")." +
+                        if (kabur >= 2) " Tulisannya sengaja dikaburkan agar lolos penyaring." else "",
+                category = ThreatCategory.SCAM_MESSAGE
+            )
+        }
+
         val matched = rules.filter { message.contains(it.pattern) || normal.contains(it.pattern) }
         matched.forEach { Log.d(TAG, "Rule match: '${it.pattern}' (${it.score}, ${it.category}, weak=${it.weak})") }
 

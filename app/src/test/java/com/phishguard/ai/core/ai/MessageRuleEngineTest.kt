@@ -94,6 +94,26 @@ class MessageRuleEngineTest {
     }
 
     @Test
+    fun `promo judol lewat janji WD tanpa kata slot tertangkap`() {
+        // Kalimat nyata dari laporan pengguna. Genre "afiliasi judol" ini
+        // sengaja tak memakai kata slot/gacor/togel dan berjualan lewat
+        // janji pembayaran ("WD berapapun LUNAS, situs terverifikasi"),
+        // jadi scan JudolWordlist biasa meleset total.
+        val spam = "R u n g'k a dddd ? , Sekalinya Menangg malah di Blockk , " +
+                "Pilih situs terverifikasi WithhDrawBerapapun LUNASS ! https://dg55.my.id/T8l"
+        val r = analisis(spam)
+        assertTrue("skor=${r.confidence} alasan=${r.reason}", r.isThreat)
+    }
+
+    @Test
+    fun `pesan wajar dengan kata lunas atau menang tidak kena`() {
+        // Kata pendukung genre di atas juga wajar sendirian — tanpa frasa
+        // jangkar, tidak boleh memvonis.
+        assertFalse(analisis("Cicilan motor bulan ini sudah lunas ya, terima kasih").isThreat)
+        assertFalse(analisis("Selamat kamu menang lomba foto kemarin, hadiahnya diambil di kantor").isThreat)
+    }
+
+    @Test
     fun `gaya menulis leetspeak tanpa tautan tetap aman`() {
         // Pengaburan padat saja tidak memvonis — harus ada tautan, karena
         // tautan itulah tujuan seluruh pesan spam.

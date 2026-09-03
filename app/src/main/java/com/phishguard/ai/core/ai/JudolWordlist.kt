@@ -124,6 +124,30 @@ class JudolWordlist {
         fun countAmbiguousSignals(text: String): Int =
             matches(text, STRONG_AMBIGUOUS).size
 
+        /**
+         * Genre "promo afiliasi judol": iklan yang sengaja MENGHINDARI kata
+         * slot/gacor/togel dan berjualan lewat janji pembayaran — "menang,
+         * WD berapapun pasti cair, situs terverifikasi, rungkad". Kata
+         * pendukungnya ("menang", "lunas", "withdraw") wajar sendirian, jadi
+         * deteksi hanya dipicu oleh FRASA jangkar di sini yang praktis tak
+         * punya pemakaian sah: bank tak pernah menulis "WD berapapun",
+         * pinjol tak menjanjikan "maxwin". Lihat MessageRuleEngineTest.
+         */
+        private val PROMO_SCAM_ANCHOR = listOf(
+            "withdrawberapapun", "withdraw berapapun", "wd berapapun", "wdberapapun",
+            "maxwinberapapun", "depoberapapun", "depositberapapun",
+            "pasti maxwin", "pasti jp", "jp paus", "jppaus",
+            "auto wd", "autowd", "wd tanpa potongan", "wd kilat", "langsung wd",
+            "rungkad"
+        )
+
+        /** @return frasa jangkar promo-judol pertama yang cocok, atau null. */
+        fun promoScamAnchor(text: String): String? {
+            if (text.isBlank()) return null
+            val t = text.lowercase()
+            return PROMO_SCAM_ANCHOR.firstOrNull { t.contains(it) }
+        }
+
         private fun matches(text: String, terms: List<String>): List<String> {
             if (text.isBlank()) return emptyList()
             val t = text.lowercase()
