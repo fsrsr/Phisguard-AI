@@ -125,46 +125,57 @@ class WarningActivity : AppCompatActivity() {
             tvHost.visibility = if (tvHost.text.isNullOrBlank()) android.view.View.GONE else android.view.View.VISIBLE
             tvQuestion.setText(R.string.warning_sms_advice)
 
-            if (phoneNumber.isNotBlank()) {
-                btnBlock.setText(R.string.warning_btn_block_number)
-                btnSafe.setText(R.string.warning_btn_ignore)
-                btnBlock.setOnClickListener {
-                    setBusy(btnBlock, btnSafe)
+            // Satu tombol yang membagikan SEMUA sinyal yang tersedia: nomor
+            // pengirim (jika ada) DAN URL di dalam pesan. Sebelumnya either/or
+            // — SMS bernomor hanya memblokir nomor, chat hanya melaporkan URL —
+            // sehingga penipuan yang punya keduanya cuma terbagi separuh.
+            btnBlock.setText(
+                if (phoneNumber.isNotBlank()) R.string.warning_btn_block_number
+                else R.string.warning_btn_close
+            )
+            btnSafe.setText(R.string.warning_btn_ignore)
+            btnBlock.setOnClickListener {
+                setBusy(btnBlock, btnSafe)
+                val reportedUrl = extractFirstUrl(ignoredMessage)
+
+                // Nomor → DB lokal + komunitas (blocked_numbers)
+                if (phoneNumber.isNotBlank()) {
                     sendToService(PhishGuardService.ACTION_BLOCK_NUMBER) {
                         putExtra("phone_number", phoneNumber)
                     }
-                    logActivity("Blocked SMS from: $phoneNumber", "SMS", "PHISHING", countAsBlocked = true)
-                    Toast.makeText(this, getString(R.string.risk_number_blocked, phoneNumber), Toast.LENGTH_SHORT).show()
-                    finish()
                 }
-            } else {
-                // Chat tanpa nomor: laporkan, jangan hanya menutup popup.
-                btnBlock.setText(R.string.warning_btn_close)
-                btnSafe.setText(R.string.warning_btn_ignore)
-                btnBlock.setOnClickListener {
-                    setBusy(btnBlock, btnSafe)
-                    val reportedUrl = extractFirstUrl(ignoredMessage)
-                    sendToService(PhishGuardService.ACTION_REPORT_MESSAGE) {
-                        putExtra("target_url", reportedUrl)
-                        putExtra("ignored_message", ignoredMessage)
-                    }
-                    logActivity("Reported message${reportedUrl.takeIf { it.isNotBlank() }?.let { ": $it"} ?: ""}", source, "USER_REPORTED", countAsBlocked = false)
-                    val reportUrls = if (reportedUrl.isBlank()) emptyList() else listOf(reportedUrl)
-                    val localReportId = java.util.UUID.randomUUID().toString()
-                    saveLocalReport(localReportId, reportedUrl, "Terkirim")
-                    FirebaseSyncManager(applicationContext).uploadUserReport(
-                        message = ignoredMessage,
-                        urls = reportUrls,
-                        source = source,
-                        reason = reason,
-                        confidence = confidence,
-                        reportId = localReportId,
-                        onSuccess = { updateLocalReport(localReportId, "Diproses") }
-                    )
-                    if (reportedUrl.isNotBlank()) uploadToFirebase(reportedUrl, reason, confidence)
-                    Toast.makeText(this, R.string.risk_message_reported, Toast.LENGTH_SHORT).show()
-                    finish()
-                }
+                // URL → komunitas (phishing_urls)
+                if (reportedUrl.isNotBlank()) uploadToFirebase(reportedUrl, reason, confidence)
+
+                // Laporan anonim (status + dedup), kini menyertakan nomor
+                val reportUrls = if (reportedUrl.isBlank()) emptyList() else listOf(reportedUrl)
+                val localReportId = java.util.UUID.randomUUID().toString()
+                saveLocalReport(localReportId, phoneNumber.ifBlank { reportedUrl }, "Terkirim")
+                FirebaseSyncManager(applicationContext).uploadUserReport(
+                    message = ignoredMessage,
+                    urls = reportUrls,
+                    source = source,
+                    reason = reason,
+                    confidence = confidence,
+                    number = phoneNumber,
+                    reportId = localReportId,
+                    onSuccess = { updateLocalReport(localReportId, "Diproses") }
+                )
+
+                logActivity(
+                    if (phoneNumber.isNotBlank()) "Blocked SMS from: $phoneNumber"
+                    else "Reported message${reportedUrl.takeIf { it.isNotBlank() }?.let { ": $it" } ?: ""}",
+                    source.ifBlank { "SMS" },
+                    if (phoneNumber.isNotBlank()) "PHISHING" else "USER_REPORTED",
+                    countAsBlocked = phoneNumber.isNotBlank()
+                )
+                Toast.makeText(
+                    this,
+                    if (phoneNumber.isNotBlank()) getString(R.string.risk_number_blocked, phoneNumber)
+                    else getString(R.string.risk_message_reported),
+                    Toast.LENGTH_SHORT
+                ).show()
+                finish()
             }
             btnSafe.setOnClickListener {
                 sendToService(PhishGuardService.ACTION_IGNORE_MESSAGE) {

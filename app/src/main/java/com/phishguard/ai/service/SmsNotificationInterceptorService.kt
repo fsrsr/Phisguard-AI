@@ -113,11 +113,14 @@ class SmsNotificationInterceptorService : NotificationListenerService() {
                     Log.e(TAG, "Gagal menyembunyikan notif: ${e.message}")
                 }
 
-                // 2. Tampilkan notifikasi peringatan kustom
+                // 2. Tampilkan notifikasi peringatan kustom.
+                //    Judul notifikasi pesan biasanya berisi pengirim; untuk
+                //    penipu (tidak ada di kontak) judul itu justru nomornya.
                 showPhishingWarningNotification(
                     originalPackage = packageName,
                     message = fullMessage,
-                    reason = reason
+                    reason = reason,
+                    sender = extractSenderNumber(title)
                 )
             }
         }
@@ -132,10 +135,24 @@ class SmsNotificationInterceptorService : NotificationListenerService() {
      * Tampilkan notifikasi peringatan pengganti SMS phishing.
      * User bisa tap untuk melihat detail pesan penipuan.
      */
+    /**
+     * Kembalikan nomor pengirim jika judul notifikasi memang sebuah nomor
+     * telepon (penipu tidak tersimpan di kontak, jadi judulnya nomor mentah).
+     * Nama kontak — yang mengandung huruf — sengaja dikembalikan kosong agar
+     * tidak ikut terblokir sebagai "nomor".
+     */
+    private fun extractSenderNumber(title: String): String {
+        val digits = title.filter { it.isDigit() || it == '+' }
+        val hasLetters = title.any { it.isLetter() }
+        val plainDigits = digits.count { it.isDigit() }
+        return if (!hasLetters && plainDigits in 5..15) digits else ""
+    }
+
     private fun showPhishingWarningNotification(
         originalPackage: String,
         message: String,
-        reason: String
+        reason: String,
+        sender: String = ""
     ) {
         val notifManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
 
@@ -146,7 +163,8 @@ class SmsNotificationInterceptorService : NotificationListenerService() {
             putExtra(WarningActivity.EXTRA_REASON, reason)
             putExtra(WarningActivity.EXTRA_SOURCE, getAppLabel(originalPackage))
             putExtra("is_sms_mode", true)
-            putExtra("phone_number", "")  // Phone number not available from notification
+            putExtra("ignored_message", message)
+            putExtra("phone_number", sender)  // kosong bila judul = nama kontak
         }
         val pendingIntent = PendingIntent.getActivity(
             this, System.currentTimeMillis().toInt(),

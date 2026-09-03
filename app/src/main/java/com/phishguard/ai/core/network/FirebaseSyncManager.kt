@@ -400,6 +400,7 @@ class FirebaseSyncManager(private val context: Context) {
         source: String,
         reason: String,
         confidence: Float,
+        number: String = "",
         reportId: String = java.util.UUID.randomUUID().toString(),
         onSuccess: ((String) -> Unit)? = null,
         onFailure: ((String) -> Unit)? = null
@@ -414,6 +415,7 @@ class FirebaseSyncManager(private val context: Context) {
             "status" to "pending",
             "created_at" to com.google.firebase.Timestamp.now()
         )
+        if (number.isNotBlank()) data["number"] = number
 
         db.collection("reports").document(reportId).set(data)
             .addOnSuccessListener {
