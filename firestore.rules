@@ -33,11 +33,13 @@ service cloud.firestore {
     match /metadata/versions {
       allow read: if true;
       allow write: if request.resource.data.keys().hasOnly(
-                        ['phishing_version', 'official_version', 'last_updated'])
+                        ['phishing_version', 'official_version', 'numbers_version', 'last_updated'])
                    && (!('phishing_version' in request.resource.data)
                         || request.resource.data.phishing_version is string)
                    && (!('official_version' in request.resource.data)
-                        || request.resource.data.official_version is string);
+                        || request.resource.data.official_version is string)
+                   && (!('numbers_version' in request.resource.data)
+                        || request.resource.data.numbers_version is string);
     }
 
     match /metadata/{doc} {
@@ -69,6 +71,16 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Nomor telepon penipu yang dilaporkan pengguna (SMS).
+    match /blocked_numbers/{doc} {
+      allow read: if true;
+      allow create: if isValidNumberReport(request.resource.data);
+      // Perbarui: hanya menaikkan penghitung; nomornya tidak boleh berubah.
+      allow update: if isValidNumberReport(request.resource.data)
+                    && request.resource.data.number == resource.data.number;
+      allow delete: if false;
+    }
+
     // Status tindak lanjut laporan pengguna.
     match /reports/{doc} {
       allow read: if true;
@@ -81,6 +93,15 @@ service cloud.firestore {
       return d.keys().hasAll(['url', 'reason'])
           && d.size() <= 10
           && d.url is string && d.url.size() > 3 && d.url.size() < 500
+          && d.reason is string && d.reason.size() < 1000
+          && (!('confidence' in d) || (d.confidence is number
+                && d.confidence >= 0 && d.confidence <= 1));
+    }
+
+    function isValidNumberReport(d) {
+      return d.keys().hasAll(['number', 'reason'])
+          && d.size() <= 10
+          && d.number is string && d.number.size() >= 5 && d.number.size() < 32
           && d.reason is string && d.reason.size() < 1000
           && (!('confidence' in d) || (d.confidence is number
                 && d.confidence >= 0 && d.confidence <= 1));

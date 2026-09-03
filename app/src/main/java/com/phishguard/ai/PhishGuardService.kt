@@ -992,6 +992,15 @@ class PhishGuardService : AccessibilityService() {
                 )
                 Log.d(TAG, "Nomor diblokir & disimpan ke DB: $number")
                 sendLogToUI("🚫 Nomor $number diblokir.", "SMS", "PHISHING")
+
+                // Bagikan ke komunitas: pada sync berikutnya nomor ini masuk
+                // DB lokal pengguna lain, dan Layer 2 langsung memperingatkan
+                // penerima SMS berikutnya dari nomor yang sama.
+                FirebaseSyncManager(applicationContext).uploadPhishingNumber(
+                    number = number,
+                    reason = "Dilaporkan pengguna sebagai pengirim penipuan",
+                    confidence = 1.0f
+                )
             } catch (e: Exception) {
                 Log.e(TAG, "Gagal menyimpan nomor blokir", e)
             }

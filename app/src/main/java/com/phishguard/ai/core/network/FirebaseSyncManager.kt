@@ -56,12 +56,15 @@ class FirebaseSyncManager(private val context: Context) {
         // Firestore collection / document paths
         const val COL_PHISHING_URLS  = "phishing_urls"
         const val COL_OFFICIAL_URLS  = "official_urls"
+        const val COL_BLOCKED_NUMBERS = "blocked_numbers"
         const val DOC_METADATA       = "metadata/versions"
 
         // SharedPreferences keys
         const val PREF_LOCAL_PHISHING_VERSION  = "local_phishing_version"
         const val PREF_LOCAL_OFFICIAL_VERSION  = "local_official_version"
+        const val PREF_LOCAL_NUMBERS_VERSION   = "local_numbers_version"
         const val PREF_LAST_SYNC_TIME          = "last_sync_time"
+        const val PREF_LAST_NUMBER_SYNC_TIME   = "last_number_sync_time"
         const val PREF_LAST_CHECK_TIME         = "last_check_time"
 
         // Minimum jeda antar check (1 jam = 3.600.000 ms)
@@ -94,12 +97,15 @@ class FirebaseSyncManager(private val context: Context) {
             .addOnSuccessListener { doc ->
                 val serverPhishingVersion  = doc.getString("phishing_version")  ?: ""
                 val serverOfficialVersion  = doc.getString("official_version")  ?: ""
+                val serverNumbersVersion   = doc.getString("numbers_version")   ?: ""
                 val localPhishingVersion   = prefs.getString(PREF_LOCAL_PHISHING_VERSION, "") ?: ""
                 val localOfficialVersion   = prefs.getString(PREF_LOCAL_OFFICIAL_VERSION, "") ?: ""
+                val localNumbersVersion    = prefs.getString(PREF_LOCAL_NUMBERS_VERSION, "") ?: ""
 
                 Log.d(TAG, "Version check:")
                 Log.d(TAG, "  Phishing — local='$localPhishingVersion' server='$serverPhishingVersion'")
                 Log.d(TAG, "  Official — local='$localOfficialVersion' server='$serverOfficialVersion'")
+                Log.d(TAG, "  Numbers  — local='$localNumbersVersion' server='$serverNumbersVersion'")
 
                 var syncsNeeded = 0
 
@@ -114,6 +120,14 @@ class FirebaseSyncManager(private val context: Context) {
                 if (serverOfficialVersion != localOfficialVersion && serverOfficialVersion.isNotBlank()) {
                     syncsNeeded++
                     syncOfficialUrls(serverOfficialVersion) {
+                        syncsNeeded--
+                        if (syncsNeeded == 0) onComplete?.invoke()
+                    }
+                }
+
+                if (serverNumbersVersion != localNumbersVersion && serverNumbersVersion.isNotBlank()) {
+                    syncsNeeded++
+                    syncPhishingNumbers(serverNumbersVersion) {
                         syncsNeeded--
                         if (syncsNeeded == 0) onComplete?.invoke()
                     }
@@ -227,6 +241,61 @@ class FirebaseSyncManager(private val context: Context) {
     }
 
     // ──────────────────────────────────────────────────────────────
+    // SYNC: Blocked Numbers (nomor penipu dari komunitas)
+    // ──────────────────────────────────────────────────────────────
+
+    private fun syncPhishingNumbers(newVersion: String, onDone: () -> Unit) {
+        val lastSyncTime = prefs.getLong(PREF_LAST_NUMBER_SYNC_TIME, 0L)
+        Log.d(TAG, "Syncing blocked numbers (since ${lastSyncTime})...")
+
+        val query = if (lastSyncTime == 0L) {
+            db.collection(COL_BLOCKED_NUMBERS).limit(500)
+        } else {
+            db.collection(COL_BLOCKED_NUMBERS)
+                .whereGreaterThan("timestamp", com.google.firebase.Timestamp(lastSyncTime / 1000, 0))
+                .limit(500)
+        }
+
+        query.get()
+            .addOnSuccessListener { snapshot ->
+                Log.d(TAG, "Blocked numbers diterima: ${snapshot.size()} entries")
+                thread {
+                    var inserted = 0
+                    for (doc in snapshot.documents) {
+                        val number = doc.getString("number") ?: continue
+                        val reason = doc.getString("reason") ?: "Nomor dari database komunitas"
+                        val confidence = doc.getDouble("confidence")?.toFloat() ?: 0.9f
+
+                        // UPSERT: lewati nomor yang sudah ada agar tidak menimpa
+                        // entri "user_report" milik pengguna sendiri.
+                        val existing = localDb.phishingNumberDao().findByNumber(number)
+                        if (existing == null) {
+                            localDb.phishingNumberDao().insert(
+                                com.phishguard.ai.data.db.PhishingNumber(
+                                    number = number,
+                                    reason = reason,
+                                    source = "community",
+                                    confidence = confidence
+                                )
+                            )
+                            inserted++
+                        }
+                    }
+                    Log.d(TAG, "✅ Upsert blocked numbers: $inserted baru dimasukkan.")
+                    prefs.edit()
+                        .putString(PREF_LOCAL_NUMBERS_VERSION, newVersion)
+                        .putLong(PREF_LAST_NUMBER_SYNC_TIME, System.currentTimeMillis())
+                        .apply()
+                    onDone()
+                }
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Gagal sync blocked numbers: ${e.message}")
+                onDone()
+            }
+    }
+
+    // ──────────────────────────────────────────────────────────────
     // COMMUNITY UPLOAD: User konfirmasi phishing → upload ke server
     // ──────────────────────────────────────────────────────────────
 
@@ -269,6 +338,54 @@ class FirebaseSyncManager(private val context: Context) {
             }
             .addOnFailureListener { e ->
                 Log.e(TAG, "Gagal upload URL phishing: ${e.message}")
+                onFailure?.invoke(e.message ?: "Unknown error")
+            }
+    }
+
+    /**
+     * Dipanggil saat pengguna menekan "Blokir Nomor" di overlay SMS.
+     * Nomor penipu dikirim ke komunitas → melindungi penerima berikutnya:
+     * pada sync berikutnya nomor masuk ke DB lokal mereka, dan Layer 2
+     * (AnalysisPipeline) langsung memunculkan peringatan sebelum korban
+     * sempat menanggapi.
+     */
+    fun uploadPhishingNumber(
+        number: String,
+        reason: String,
+        confidence: Float,
+        onSuccess: (() -> Unit)? = null,
+        onFailure: ((String) -> Unit)? = null
+    ) {
+        val clean = number.trim()
+        if (clean.length < 5) {                 // shortcode/alfanumerik pengirim resmi
+            onFailure?.invoke("Nomor terlalu pendek untuk dibagikan"); return
+        }
+        val numberHash = clean.replace(Regex("[^a-zA-Z0-9+]"), "_").take(100)
+
+        Log.d(TAG, "📤 Uploading nomor penipu ke komunitas: $clean")
+
+        val data = hashMapOf(
+            "number"          to clean,
+            "reason"          to reason,
+            "confidence"      to confidence,
+            "reported_count"  to 1,
+            "ai_confirmed"    to (confidence >= 0.80f),
+            "timestamp"       to com.google.firebase.Timestamp.now(),
+            "source"          to "user_report"
+        )
+
+        db.collection(COL_BLOCKED_NUMBERS)
+            .document(numberHash)
+            .set(data, com.google.firebase.firestore.SetOptions.merge())
+            .addOnSuccessListener {
+                Log.d(TAG, "✅ Nomor berhasil diupload ke komunitas: $clean")
+                db.collection(COL_BLOCKED_NUMBERS).document(numberHash)
+                    .update("reported_count", com.google.firebase.firestore.FieldValue.increment(1))
+                bumpServerVersion("numbers")
+                onSuccess?.invoke()
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Gagal upload nomor penipu: ${e.message}")
                 onFailure?.invoke(e.message ?: "Unknown error")
             }
     }
