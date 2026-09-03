@@ -16,8 +16,6 @@ import com.google.android.material.button.MaterialButton
 import com.phishguard.ai.PhishGuardService
 import com.phishguard.ai.R
 import com.phishguard.ai.core.network.FirebaseSyncManager
-import com.phishguard.ai.core.tts.TextToSpeechEngine
-import com.phishguard.ai.data.AppPreferences
 
 /**
  * Layar peringatan yang muncul di atas browser/aplikasi lain.
@@ -45,9 +43,6 @@ class WarningActivity : AppCompatActivity() {
 
     private val TAG = "WarningActivity"
 
-    /** Diaktifkan lewat Pengaturan → Voice Alerts. Toggle itu dulu tidak terhubung ke apa pun. */
-    private var tts: TextToSpeechEngine? = null
-
     /**
      * Minta service menavigasi kembali satu halaman saat overlay ditutup.
      *
@@ -69,15 +64,7 @@ class WarningActivity : AppCompatActivity() {
                 putExtra("request_back", requestBackOnClose)
             })
         } catch (_: Exception) {}
-        tts?.shutdown()
         super.onDestroy()
-    }
-
-    private fun speakIfEnabled(text: String) {
-        if (!AppPreferences(this).ttsEnabled) return
-        tts = TextToSpeechEngine(this)
-        // TTS butuh waktu inisialisasi; ucapkan setelah engine siap.
-        window.decorView.postDelayed({ tts?.speak(text) }, 900)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -203,7 +190,6 @@ class WarningActivity : AppCompatActivity() {
         // ── MODE: keputusan HITL ────────────────────────────────────────
         tvTitle.setText(if (highRisk) R.string.warning_title else R.string.warning_title_medium)
         tvHost.text = hostOf(url)
-        speakIfEnabled("${tvTitle.text}. ${hostOf(url)}")
 
         btnSafe.setOnClickListener {
             sendToService(PhishGuardService.ACTION_MARK_SAFE) { putExtra("target_url", url) }

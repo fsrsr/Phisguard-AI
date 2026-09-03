@@ -40,9 +40,6 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean(KEY_NOTIFICATIONS, true)
         set(value) = prefs.edit().putBoolean(KEY_NOTIFICATIONS, value).apply()
 
-    var ttsEnabled: Boolean
-        get() = prefs.getBoolean(KEY_TTS, false)
-        set(value) = prefs.edit().putBoolean(KEY_TTS, value).apply()
 
     // --- Custom Monitored Apps (from auto-detect) ---
 
@@ -120,7 +117,6 @@ class AppPreferences(context: Context) {
         private const val KEY_INSTAGRAM = "monitor_instagram"
         private const val KEY_CHROME = "monitor_chrome"
         private const val KEY_NOTIFICATIONS = "notifications"
-        private const val KEY_TTS = "tts"
         private const val KEY_CUSTOM_APPS = "custom_monitored_apps"
     }
 }

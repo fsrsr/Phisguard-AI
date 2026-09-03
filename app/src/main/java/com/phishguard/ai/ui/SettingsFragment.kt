@@ -70,13 +70,6 @@ class SettingsFragment : Fragment() {
             prefs.notificationsEnabled = checked
         }
 
-        // TTS
-        val switchTts = view.findViewById<SwitchMaterial>(R.id.switchTts)
-        switchTts.isChecked = prefs.ttsEnabled
-        switchTts.setOnCheckedChangeListener { _, checked ->
-            prefs.ttsEnabled = checked
-        }
-
         // Notification Access (SMS/chat interceptor)
         val btnNotifAccess = view.findViewById<LinearLayout>(R.id.btnNotifAccess)
         btnNotifAccess.setOnClickListener {

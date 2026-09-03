@@ -50,8 +50,6 @@
     <string name="setting_accessibility_desc">Required for monitoring apps</string>
     <string name="setting_notifications">Notifications</string>
     <string name="setting_notifications_desc">Alert when threats are detected</string>
-    <string name="setting_tts">Voice Alerts</string>
-    <string name="setting_tts_desc">Speak warnings aloud when threats found</string>
     <string name="setting_about">About</string>
     <string name="setting_version">Version 2.0</string>
     <string name="setting_export">Export Laporan Aktivitas</string>
