@@ -83,8 +83,7 @@ data class AnalysisResult(
  */
 enum class InputType {
     URL,            // URL dari browser
-    MESSAGE,        // Pesan teks (SMS, chat)
-    VOICE_TEXT      // Transkripsi suara dari panggilan
+    MESSAGE         // Pesan teks (SMS, chat)
 }
 
 /**
@@ -93,6 +92,5 @@ enum class InputType {
 enum class ThreatCategory {
     PHISHING,       // Web/URL phishing
     SCAM_MESSAGE,   // Pesan penipuan
-    FRAUD_CALL,     // Panggilan penipuan
     SAFE            // Aman
 }

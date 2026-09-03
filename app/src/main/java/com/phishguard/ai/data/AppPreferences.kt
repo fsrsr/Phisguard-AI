@@ -35,11 +35,6 @@ class AppPreferences(context: Context) {
     // SMS is always on (default true, can't be turned off from UI)
     val monitorSms: Boolean get() = true
 
-    // --- Call Protection ---
-    var callProtectionEnabled: Boolean
-        get() = prefs.getBoolean(KEY_CALL_PROTECTION, false)
-        set(value) = prefs.edit().putBoolean(KEY_CALL_PROTECTION, value).apply()
-
     // --- Settings ---
     var notificationsEnabled: Boolean
         get() = prefs.getBoolean(KEY_NOTIFICATIONS, true)
@@ -124,7 +119,6 @@ class AppPreferences(context: Context) {
         private const val KEY_FACEBOOK = "monitor_facebook"
         private const val KEY_INSTAGRAM = "monitor_instagram"
         private const val KEY_CHROME = "monitor_chrome"
-        private const val KEY_CALL_PROTECTION = "call_protection"
         private const val KEY_NOTIFICATIONS = "notifications"
         private const val KEY_TTS = "tts"
         private const val KEY_CUSTOM_APPS = "custom_monitored_apps"

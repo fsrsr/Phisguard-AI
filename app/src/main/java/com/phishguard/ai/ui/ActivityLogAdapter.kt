@@ -51,10 +51,6 @@ class ActivityLogAdapter(
                 holder.ivIcon.setImageResource(android.R.drawable.ic_dialog_alert)
                 holder.ivIcon.setColorFilter(context.getColor(R.color.error))
             }
-            ActivityLogItem.LogType.CALL -> {
-                holder.ivIcon.setImageResource(android.R.drawable.ic_menu_call)
-                holder.ivIcon.setColorFilter(context.getColor(R.color.warning))
-            }
             ActivityLogItem.LogType.SYSTEM -> {
                 holder.ivIcon.setImageResource(android.R.drawable.ic_dialog_info)
                 holder.ivIcon.setColorFilter(context.getColor(R.color.primary))

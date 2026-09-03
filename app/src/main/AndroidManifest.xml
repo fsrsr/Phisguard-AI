@@ -12,10 +12,6 @@
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.READ_SMS" />
 
-    <!-- Call Monitoring -->
-    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-
     <!-- Notifications -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
@@ -24,17 +20,6 @@
 
     <!-- Overlay (floating Check this website button) -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-
-    <!-- Foreground Service -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <!--
-        WAJIB sejak Android 14 untuk foreground service bertipe "microphone".
-        Tanpa ini startForeground() melempar SecurityException, dan karena
-        ProtectionFragment menyalakan ulang service tiap aplikasi dibuka,
-        aplikasi terkunci dalam lingkaran crash begitu Call Protection
-        pernah diaktifkan.
-    -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
 
     <application
         android:allowBackup="true"
@@ -78,12 +63,6 @@
                 <action android:name="android.provider.Telephony.SMS_RECEIVED" />
             </intent-filter>
         </receiver>
-
-        <!-- Call Monitor Service -->
-        <service
-            android:name=".service.CallMonitorService"
-            android:exported="false"
-            android:foregroundServiceType="microphone" />
 
         <!-- Warning Overlay Activity -->
         <activity

@@ -65,7 +65,6 @@ class ActivityFragment : Fragment() {
         chipGroup.setOnCheckedStateChangeListener { _, checkedIds ->
             currentFilter = when {
                 checkedIds.contains(R.id.chipPhishing) -> ActivityLogItem.LogType.PHISHING
-                checkedIds.contains(R.id.chipCalls) -> ActivityLogItem.LogType.CALL
                 checkedIds.contains(R.id.chipSafe) -> ActivityLogItem.LogType.SAFE
                 else -> null // "All"
             }

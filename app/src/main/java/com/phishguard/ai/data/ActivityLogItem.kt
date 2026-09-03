@@ -14,7 +14,6 @@ data class ActivityLogItem(
         /** Sinyal cukup untuk diberitahukan, belum cukup untuk memblokir. */
         SUSPICIOUS,
         PHISHING,
-        CALL,
         SYSTEM
     }
 }

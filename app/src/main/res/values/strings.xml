@@ -16,7 +16,6 @@
     <string name="status_desc_inactive">Enable accessibility service to start</string>
     <string name="stat_scanned">URLs Scanned</string>
     <string name="stat_blocked">Threats Blocked</string>
-    <string name="stat_calls">Calls Monitored</string>
     <string name="recent_threats">Recent Threats</string>
     <string name="no_threats">No threats detected yet</string>
     <string name="my_reports">Laporan Saya</string>
@@ -38,14 +37,11 @@
     <string name="app_instagram_desc">Scan links in Instagram DMs</string>
     <string name="app_chrome">Chrome Browser</string>
     <string name="app_chrome_desc">Monitor URLs visited in Chrome</string>
-    <string name="call_protection">Call Protection</string>
-    <string name="call_protection_desc">AI-powered detection of fraudulent phone calls</string>
 
     <!-- Activity -->
     <string name="activity_title">Activity Log</string>
     <string name="filter_all">All</string>
     <string name="filter_phishing">Phishing</string>
-    <string name="filter_calls">Calls</string>
     <string name="filter_safe">Safe</string>
 
     <!-- Settings -->

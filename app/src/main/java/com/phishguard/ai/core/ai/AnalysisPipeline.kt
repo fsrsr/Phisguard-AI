@@ -49,7 +49,6 @@ class AnalysisPipeline(private val context: Context) {
     // AI Providers — TFLite NLP untuk SMS, rule-based LSTM untuk URL
     var urlProvider: AIModelProvider = LstmUrlProvider()
     var messageProvider: AIModelProvider = TFLiteMessageProvider()  // NLP Classifier
-    var voiceProvider: AIModelProvider = DefaultRuleProvider()
 
     // Database instance
     private val database: PhishingDatabase by lazy {
@@ -60,7 +59,6 @@ class AnalysisPipeline(private val context: Context) {
         // Initialize default providers
         urlProvider.initialize(context)
         messageProvider.initialize(context)
-        voiceProvider.initialize(context)
     }
 
     /**
@@ -212,52 +210,7 @@ class AnalysisPipeline(private val context: Context) {
         }
     }
 
-    /**
-     * Full analysis flow untuk Voice (Voice Phishing):
-     * 1. Run AI provider pada transkripsi
-     */
-    fun analyzeVoice(transcription: String, callback: (AnalysisResult) -> Unit) {
-        thread {
-            try {
-                Log.d(TAG, "Analyzing voice: ${transcription.take(100)}...")
 
-                val input = AnalysisInput(
-                    type = InputType.VOICE_TEXT,
-                    content = transcription,
-                    source = "Phone"
-                )
-                val result = voiceProvider.analyze(input)
-                callback(result)
-
-            } catch (e: Exception) {
-                Log.e(TAG, "Voice analysis error", e)
-                callback(AnalysisResult.safe(0.5f, "Analysis error: ${e.message}"))
-            }
-        }
-    }
-
-    /**
-     * Check phone number against local database.
-     */
-    fun checkPhoneNumber(number: String, callback: (AnalysisResult) -> Unit) {
-        thread {
-            try {
-                val knownPhishing = database.phishingNumberDao().findByNumber(number)
-                if (knownPhishing != null) {
-                    callback(AnalysisResult.threat(
-                        confidence = 1.0f,
-                        reason = "Nomor terdaftar dalam database penipuan: ${knownPhishing.reason}",
-                        category = ThreatCategory.FRAUD_CALL
-                    ))
-                } else {
-                    callback(AnalysisResult.safe(0.5f, "Nomor tidak ditemukan di database"))
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Phone check error", e)
-                callback(AnalysisResult.safe(0.5f, "Check error: ${e.message}"))
-            }
-        }
-    }
 
     /**
      * Release all provider resources.
@@ -265,7 +218,6 @@ class AnalysisPipeline(private val context: Context) {
     fun release() {
         urlProvider.release()
         messageProvider.release()
-        voiceProvider.release()
     }
 
     // --- Helpers ---

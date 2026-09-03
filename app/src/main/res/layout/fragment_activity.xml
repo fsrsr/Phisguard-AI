@@ -57,13 +57,6 @@
                 android:text="@string/filter_phishing" />
 
             <com.google.android.material.chip.Chip
-                android:id="@+id/chipCalls"
-                style="@style/Widget.MaterialComponents.Chip.Choice"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/filter_calls" />
-
-            <com.google.android.material.chip.Chip
                 android:id="@+id/chipSafe"
                 style="@style/Widget.MaterialComponents.Chip.Choice"
                 android:layout_width="wrap_content"

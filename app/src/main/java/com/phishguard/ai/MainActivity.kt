@@ -86,16 +86,14 @@ class MainActivity : AppCompatActivity() {
     /**
      * Minta izin berbahaya yang dideklarasikan di manifest.
      *
-     * Tanpa ini SmsReceiver tidak pernah menerima SMS, CallMonitorService
-     * tidak bisa merekam, dan notifikasi peringatan tidak muncul di Android 13+
-     * — izin di manifest saja tidak cukup sejak Android 6.
+     * Tanpa ini SmsReceiver tidak pernah menerima SMS dan notifikasi
+     * peringatan tidak muncul di Android 13+ — izin di manifest saja tidak
+     * cukup sejak Android 6.
      */
     private fun requestRuntimePermissions() {
         val wanted = mutableListOf(
             Manifest.permission.RECEIVE_SMS,
-            Manifest.permission.READ_SMS,
-            Manifest.permission.READ_PHONE_STATE,
-            Manifest.permission.RECORD_AUDIO
+            Manifest.permission.READ_SMS
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             wanted += Manifest.permission.POST_NOTIFICATIONS

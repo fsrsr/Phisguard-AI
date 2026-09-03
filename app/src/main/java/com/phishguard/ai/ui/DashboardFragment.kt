@@ -35,8 +35,7 @@ class DashboardFragment : Fragment() {
         /** Jenis log yang layak tampil di riwayat singkat dashboard. */
         private val NOTABLE_TYPES = setOf(
             ActivityLogItem.LogType.SUSPICIOUS,
-            ActivityLogItem.LogType.PHISHING,
-            ActivityLogItem.LogType.CALL
+            ActivityLogItem.LogType.PHISHING
         )
     }
 
@@ -46,7 +45,6 @@ class DashboardFragment : Fragment() {
     private lateinit var btnAction: MaterialButton
     private lateinit var tvStatScanned: TextView
     private lateinit var tvStatBlocked: TextView
-    private lateinit var tvStatCalls: TextView
     private lateinit var rvRecentThreats: RecyclerView
     private lateinit var tvNoThreats: TextView
     private lateinit var tvReportSummary: TextView
@@ -58,7 +56,6 @@ class DashboardFragment : Fragment() {
 
     private var scannedCount = 0
     private var blockedCount = 0
-    private var callCount = 0
 
     private val logReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -84,10 +81,6 @@ class DashboardFragment : Fragment() {
                 if (type == ActivityLogItem.LogType.PHISHING) {
                     blockedCount++
                     tvStatBlocked.text = blockedCount.toString()
-                }
-                if (type == ActivityLogItem.LogType.CALL) {
-                    callCount++
-                    tvStatCalls.text = callCount.toString()
                 }
 
                 // Riwayat singkat: ancaman, temuan mencurigakan, dan panggilan
@@ -120,7 +113,6 @@ class DashboardFragment : Fragment() {
         btnAction = view.findViewById(R.id.btnAction)
         tvStatScanned = view.findViewById(R.id.tvStatScanned)
         tvStatBlocked = view.findViewById(R.id.tvStatBlocked)
-        tvStatCalls = view.findViewById(R.id.tvStatCalls)
         rvRecentThreats = view.findViewById(R.id.rvRecentThreats)
         tvNoThreats = view.findViewById(R.id.tvNoThreats)
         tvReportSummary = view.findViewById(R.id.tvReportSummary)
@@ -246,11 +238,9 @@ class DashboardFragment : Fragment() {
         // Read stats from separate counters (not from logs)
         scannedCount = prefs.getInt("scanned_count", 0)
         blockedCount = prefs.getInt("blocked_count", 0)
-        callCount = parsedLogs.count { it.type == ActivityLogItem.LogType.CALL }
         
         tvStatScanned.text = scannedCount.toString()
         tvStatBlocked.text = blockedCount.toString()
-        tvStatCalls.text = callCount.toString()
         
         // Riwayat singkat: 5 kejadian penting terakhir
         recentItems.clear()

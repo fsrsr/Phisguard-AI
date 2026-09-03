@@ -167,8 +167,7 @@ class AppIntegrityChecker(private val context: Context) {
             val criticalClasses = listOf(
                 "com.phishguard.ai.PhishGuardService",
                 "com.phishguard.ai.core.security.AppIntegrityChecker",
-                "com.phishguard.ai.receiver.SmsReceiver",
-                "com.phishguard.ai.service.CallMonitorService"
+                "com.phishguard.ai.receiver.SmsReceiver"
             )
 
             for (className in criticalClasses) {
