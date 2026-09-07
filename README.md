@@ -1,9 +1,8 @@
 # PhishGuard AI
 
 Aplikasi Android pelindung dari penipuan digital untuk pengguna Indonesia.
-Memantau tautan di peramban, pesan SMS/chat, notifikasi, dan panggilan
-telepon, lalu memperingatkan pengguna sebelum data atau uangnya berpindah
-tangan.
+Memantau tautan di peramban serta pesan SMS, chat, dan notifikasi, lalu
+memperingatkan pengguna sebelum data atau uangnya berpindah tangan.
 
 Dirancang dengan satu prinsip yang mengikat semua keputusan teknisnya:
 **peringatan palsu sama merusaknya dengan ancaman yang terlewat.** Peringatan
@@ -16,7 +15,7 @@ tidak lagi melindungi siapa pun.
 
 - [Kemampuan](#kemampuan)
 - [Cara kerja deteksi](#cara-kerja-deteksi)
-  - [Empat kanal masuk](#empat-kanal-masuk)
+  - [Tiga kanal masuk](#tiga-kanal-masuk)
   - [Pipeline URL](#pipeline-url)
   - [Skoring risiko berbobot](#skoring-risiko-berbobot)
   - [Respons bertingkat](#respons-bertingkat)
@@ -46,7 +45,6 @@ tidak lagi melindungi siapa pun.
 | **Peramban** | URL yang dibuka di 24 peramban dan WebView dalam aplikasi | `AccessibilityService` |
 | **SMS** | Pesan masuk di aplikasi pesan bawaan | `BroadcastReceiver` |
 | **Chat & notifikasi** | WhatsApp, Telegram, Messenger, Instagram | `NotificationListenerService` |
-| **Panggilan** | Transkripsi percakapan secara langsung (bahasa Indonesia) | `SpeechRecognizer` + `ForegroundService` |
 
 Ditambah:
 
@@ -58,23 +56,27 @@ Ditambah:
   keputusan itu diingat lintas sesi.
 - **Bekerja luring** — pemeriksaan blocklist dan seluruh heuristik berjalan
   tanpa jaringan.
+- **Cek manual & reconnaissance domain** — pengguna bisa membagikan atau
+  menempel URL untuk diperiksa lewat `CheckWebsiteActivity`; `WebsiteReconAgent`
+  menganalisis WHOIS, sertifikat SSL, catatan DNS, struktur URL, dan pola
+  rekayasa sosial, lalu menampilkan hasilnya di `ReconResultActivity`.
+- **Deteksi aplikasi terpasang** — `InstalledAppDetector` mendata aplikasi
+  pesan/chat yang ada di perangkat agar pemantauan notifikasi menyesuaikan.
 
 ---
 
 ## Cara kerja deteksi
 
-### Empat kanal masuk
+### Tiga kanal masuk
 
 ```mermaid
 flowchart TD
     B["Peramban<br/>PhishGuardService"] --> P
     S["SMS<br/>SmsReceiver"] --> L
     N["Notifikasi chat<br/>SmsNotificationInterceptor"] --> L
-    C["Panggilan<br/>CallMonitorService"] --> V
 
     P["analyzeUrl"] --> AP[AnalysisPipeline]
     L["analyzeMessageLayers"] --> AP
-    V["analyzeVoice"] --> AP
 
     AP --> R{Tingkat risiko}
     R -->|"0,80 ke atas"| FS["Layar peringatan penuh<br/>situs dihentikan"]
@@ -371,8 +373,9 @@ dinyalakan pengguna sendiri di Pengaturan:
 3. **Tampilkan di atas aplikasi lain** — pada sebagian ROM (Xiaomi, Oppo,
    Vivo) diperlukan agar layar peringatan bisa muncul di atas peramban.
 
-Izin SMS, telepon, mikrofon, dan notifikasi diminta otomatis saat aplikasi
-pertama dibuka.
+Izin SMS (`RECEIVE_SMS`, `READ_SMS`) dan notifikasi (`POST_NOTIFICATIONS`)
+diminta otomatis saat aplikasi pertama dibuka. Izin lain di manifest:
+`INTERNET` dan `SYSTEM_ALERT_WINDOW`.
 
 > **Catatan untuk pengujian lewat adb.** Sebagian ROM (terverifikasi di Vivo
 > OriginOS, Android 14) menolak pengaktifan layanan aksesibilitas lewat
@@ -410,6 +413,8 @@ Catat panjang atau kategorinya saja.
 app/src/main/java/com/phishguard/ai/
 ├── PhishGuardService.kt          AccessibilityService — pemantau peramban & chat
 ├── MainActivity.kt               Kerangka UI, izin runtime, cek integritas
+├── core/
+│   └── InstalledAppDetector.kt   Deteksi aplikasi pesan/chat yang terpasang
 ├── core/ai/
 │   ├── AnalysisPipeline.kt       Orkestrator: DB lokal → daftar putih → blocklist → AI
 │   ├── AIModelProvider.kt        Antarmuka provider (bisa ditukar)
@@ -418,19 +423,28 @@ app/src/main/java/com/phishguard/ai/
 │   ├── JudolWordlist.kt          Kata penanda judi berbobot
 │   ├── LstmUrlProvider.kt        Provider URL, menjembatani DB ke scorer
 │   ├── TFLiteMessageProvider.kt  Mesin aturan pesan (siap diganti TFLite)
-│   ├── DefaultRuleProvider.kt    Analisis suara
-│   ├── CallFraudDetector.kt      Speech-to-text + analisis berjendela
+│   ├── TextNormalizer.kt         Normalisasi teks pesan (leetspeak, spasi sisip, dsb.)
 │   └── MessageAnalyzer.kt        Pembungkus untuk pencegat notifikasi
 ├── core/network/
 │   ├── FirebaseSyncManager.kt    Sinkronisasi berbasis versi + unggah komunitas
 │   ├── ServerSyncManager.kt      Umpan publik OpenPhish & PhishTank
 │   └── ApiClient.kt              Klien HTTP
+├── core/recon/
+│   └── WebsiteReconAgent.kt      Analisis WHOIS/SSL/DNS/struktur URL untuk cek manual
 ├── core/security/
 │   └── AppIntegrityChecker.kt    Verifikasi tanda tangan & anti-utak-atik
-├── data/db/                      Room: phishing_urls, phishing_numbers, official_urls
+├── core/ui/
+│   └── FloatingCheckManager.kt   Tombol mengambang untuk cek cepat
+├── data/
+│   ├── ActivityLogItem.kt        Model item log aktivitas
+│   ├── AppPreferences.kt         Penyimpanan preferensi & keputusan pengguna
+│   └── db/                       Room: phishing_urls, phishing_numbers, official_urls
 ├── receiver/SmsReceiver.kt       SMS masuk
-├── service/                      Pemantau panggilan, pencegat notifikasi
-└── ui/                           Dashboard, Proteksi, Aktivitas, Pengaturan, Peringatan
+├── service/
+│   └── SmsNotificationInterceptorService.kt  NotificationListenerService — pencegat notifikasi chat
+└── ui/                           MainActivity fragments (Dashboard, Proteksi, Aktivitas,
+                                  Pengaturan), WarningActivity, CheckWebsiteActivity,
+                                  ReconResultActivity, adapter daftar
 
 app/src/main/assets/
 ├── blocklist.bloom               Bloom filter 4,1 juta domain (9,4 MB)
@@ -558,16 +572,19 @@ akan mendeteksinya sendiri saat inisialisasi.
 ./gradlew testDebugUnitTest
 ```
 
-27 pengujian, semuanya murni JVM tanpa emulator:
+47 pengujian PhishGuard, semuanya murni JVM tanpa emulator (ditambah satu
+`ExampleUnitTest` sisa templat di paket `com.example.ai_project_singapore`):
 
-- **`UrlRiskScorerTest`** (18) mengunci perilaku dua arah — situs normal
+- **`UrlRiskScorerTest`** (20) mengunci perilaku dua arah — situs normal
   tidak boleh diblokir (halaman `/login`, domain bertanda hubung, `.shop`,
   kata yang memuat nama brand, satu istilah judi ambigu), dan pola phishing
   sungguhan harus tetap tertangkap (peniruan brand berafiks, typosquat, IP
   mentah, domain judi bertumpuk istilah).
-- **`MessageRuleEngineTest`** (5) menjaga mesin aturan pesan: percakapan
+- **`MessageRuleEngineTest`** (12) menjaga mesin aturan pesan: percakapan
   sehari-hari dan satu frasa lunak harus aman; scam gaya lunak, frasa kuat,
   dan URL peniru bank harus tertangkap.
+- **`TextNormalizerTest`** (11) menjaga normalisasi teks pesan sebelum masuk
+  mesin aturan (leetspeak, spasi/karakter sisip, huruf berulang).
 - **`DomainBlocklistTest`** (4) menguji kesepakatan algoritma Python ↔ Kotlin
   memakai vektor acuan. Ini penting: bila perhitungan indeks di kedua sisi
   menyimpang sedikit saja, aset 9,4 MB berhenti mencocokkan apa pun **tanpa
@@ -586,12 +603,11 @@ JVM dan kelas heuristik memakainya untuk penelusuran.
 - **Bergantung pada bilah alamat.** Pengambilan URL memakai `viewId` peramban.
   Peramban yang tidak dikenal atau berubah tata letaknya bisa lolos dari
   pemantauan.
-- **Analisis suara butuh jaringan** pada sebagian perangkat, karena
-  `SpeechRecognizer` Android tidak selalu punya model luring bahasa Indonesia.
-- **Call Protection butuh izin mikrofon**, dan sejak Android 14 juga
-  `FOREGROUND_SERVICE_MICROPHONE` di manifest. Bila izinnya dicabut, toggle
-  dimatikan sendiri dengan pesan di log aktivitas — tidak lagi membuat
-  aplikasi gagal dibuka.
+- **Deteksi panggilan telepon belum diimplementasikan.** Rancangannya ada di
+  `VOICE_PHISHING_DETECTION.md` dan skrip terpisah `call-to-ip/call-to-ip.py`,
+  tetapi belum ada layanan, izin mikrofon, atau pemakaian `SpeechRecognizer`
+  di kode aplikasi. Kanal aktif saat ini hanya peramban, SMS, dan notifikasi
+  chat.
 - **Ambang belum tervalidasi lapangan** — lihat [Menyetel ambang
   deteksi](#menyetel-ambang-deteksi).
 - **Deteksi chat bergantung pada teks notifikasi**, bukan isi percakapan.
